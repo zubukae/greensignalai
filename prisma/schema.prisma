@@ -183,7 +183,7 @@ model AdministrativeNode {
   users        User[]
   sensors      SensorNode[]
   shelters     ReliefCenter[]
-  incidents    DisasterIncident[]
+  incidentReports DisasterIncident[]
   coordinationGroups CoordinationGroup[]
   responseTasks ResponseTask[]
   volunteerProfiles VolunteerProfile[]

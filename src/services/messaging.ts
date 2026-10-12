@@ -1,7 +1,7 @@
 import { prisma } from '../lib/prisma';
 import { verifyAuthToken } from '../lib/authToken';
 import { Server, Socket } from 'socket.io';
-import { constants, createPublicKey, verify as verifySignature } from 'crypto';
+import { constants, createPublicKey, verify as verifySignature, type JsonWebKey as CryptoJsonWebKey } from 'crypto';
 
 export interface UserSearchResult {
   id: string;
@@ -117,7 +117,7 @@ export class MessagingService {
       where: { id: { in: userIds } },
       select: { id: true, role: true }
     });
-    return participants.length === 2 && participants.every(participant => participant.role !== 'CITIZEN');
+    return participants.length === 2 && participants.every((participant: { role: string }) => participant.role !== 'CITIZEN');
   }
 
   static async getChannelEncryptionRecipients(userId: string, channel: string) {
@@ -197,7 +197,12 @@ export class MessagingService {
     const allNodes = await prisma.administrativeNode.findMany({
       select: { id: true, name: true, tier: true, parentId: true }
     });
-    const nodesById = new Map(allNodes.map((node: any) => [node.id, node]));
+    const nodesById = new Map<string, { id: string; name: string; tier: string; parentId: string | null }>(
+      allNodes.map((node: any): [string, { id: string; name: string; tier: string; parentId: string | null }] => [
+        node.id,
+        node
+      ])
+    );
     const descendants = new Map<string, string[]>();
     for (const node of allNodes) {
       if (!node.parentId) continue;
@@ -279,10 +284,10 @@ export class MessagingService {
           select: { userId: true }
         });
         const currentMemberIds = new Set(currentMembers.map((member: { userId: string }) => member.userId));
-        const additionalMembers = eligibleMembers.filter(memberId => !currentMemberIds.has(memberId));
+        const additionalMembers = eligibleMembers.filter((memberId: string) => !currentMemberIds.has(memberId));
         if (additionalMembers.length > 0) {
           await prisma.coordinationGroupMember.createMany({
-            data: additionalMembers.map(memberId => ({
+            data: additionalMembers.map((memberId: string) => ({
               groupId: existingGroup.id,
               userId: memberId,
               role: memberId === userId && currentMembers.length === 0 ? 'LEADER' : 'MEMBER'
@@ -323,7 +328,7 @@ export class MessagingService {
 
     try {
       await prisma.coordinationGroupMember.createMany({
-        data: eligibleMembers.map(memberId => ({
+        data: eligibleMembers.map((memberId: string) => ({
           groupId: group.id,
           userId: memberId,
           role: memberId === userId ? 'LEADER' : 'MEMBER'
@@ -504,7 +509,7 @@ export class MessagingService {
           organization: true
         }
       }) : [];
-      const usersById = new Map(otherUsers.map((user: any) => [user.id, user]));
+      const usersById = new Map<string, any>(otherUsers.map((user: any): [string, any] => [user.id, user]));
 
       for (const [otherUserId, msg] of latestMessageByUser) {
         const otherUser = usersById.get(otherUserId);
@@ -652,7 +657,7 @@ export class MessagingService {
     }
     try {
       const signingKey = createPublicKey({
-        key: sender.messagingSigningPublicKey as JsonWebKey,
+        key: sender.messagingSigningPublicKey as CryptoJsonWebKey,
         format: 'jwk'
       });
       const validSignature = verifySignature(
@@ -735,11 +740,11 @@ export class MessagingService {
       prisma.user.findUnique({
         where: { id: payload.userId },
         select: { id: true }
-      }).then(user => {
+      }).then((user: { id: string } | null) => {
         if (!user) return next(new Error('Authenticated user not found'));
         socket.data.messagingUserId = user.id;
         next();
-      }).catch(error => {
+      }).catch((error: unknown) => {
         console.error('[Messaging] Socket authentication failed:', error);
         next(new Error('Unable to authenticate messaging connection'));
       });

@@ -103,7 +103,9 @@ export class OperationsService {
     if (input.assigneeIds !== undefined && (!Array.isArray(input.assigneeIds) || input.assigneeIds.some((id: unknown) => typeof id !== 'string'))) {
       throw new Error('Task assignees must be a list of user IDs.');
     }
-    const assigneeIds: string[] = Array.isArray(input.assigneeIds) ? [...new Set(input.assigneeIds)] : [];
+    const assigneeIds = Array.isArray(input.assigneeIds)
+      ? [...new Set<string>(input.assigneeIds as string[])]
+      : [];
     if (assigneeIds.length > 50) throw new Error('A task can have no more than 50 assignees.');
     const assignees = assigneeIds.length
       ? await prisma.user.findMany({
@@ -232,7 +234,7 @@ export class OperationsService {
       throw new Error('Volunteer skills must be provided as a list of text values.');
     }
     const skills = Array.isArray(input?.skills)
-      ? [...new Set(input.skills.map((skill: string) => skill.trim()).filter(Boolean))]
+      ? [...new Set((input.skills as string[]).map(skill => skill.trim()).filter(Boolean))]
       : [];
     if (skills.length > 30 || skills.some((skill: string) => skill.length > 60)) {
       throw new Error('Provide up to 30 volunteer skills, each no longer than 60 characters.');
@@ -425,7 +427,7 @@ export class OperationsService {
       throw new Error('Alert hazard filters must be provided as a list of text values.');
     }
     const hazardTypes = Array.isArray(input?.hazardTypes)
-      ? [...new Set(input.hazardTypes.map((value: string) => value.trim().toUpperCase()).filter(Boolean))]
+      ? [...new Set((input.hazardTypes as string[]).map(value => value.trim().toUpperCase()).filter(Boolean))]
       : [];
     if (hazardTypes.length > 20 || hazardTypes.some((value: string) => !/^[A-Z_]{2,40}$/.test(value))) {
       throw new Error('Choose valid hazard types.');
@@ -521,7 +523,8 @@ export class OperationsService {
       const areaMatches = nationwide || relevantNodeIds.has(subscription.administrativeNodeId);
       const hazardMatches = !subscription.hazardTypes.length ||
         (hazardType && subscription.hazardTypes.includes(hazardType));
-      return areaMatches && hazardMatches && severityRank[severity as AlertSeverity] >= severityRank[subscription.minimumSeverity];
+      return areaMatches && hazardMatches &&
+        severityRank[severity as AlertSeverity] >= severityRank[subscription.minimumSeverity as AlertSeverity];
     });
     return prisma.$transaction(async (tx: any) => {
       const alert = await tx.disasterAlert.create({
