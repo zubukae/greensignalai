@@ -604,9 +604,9 @@
           </div>
           <h4 class="text-sm font-bold text-white">Privacy-Isolated Real-Time Messenger</h4>
           <ul class="text-xs text-slate-300 space-y-1.5 list-disc list-inside">
-            <li>Channel-isolated Socket.io event architecture separating public broadcast rooms (<code class="text-indigo-300">upazila-general</code>) from end-to-end direct conversations (<code class="text-indigo-300">direct-userIdA-userIdB</code>).</li>
-            <li>Debounced directory search across all system responders (by username, full name, role, organization, and phone number).</li>
-            <li>Strict access control preventing data leaks across accounts.</li>
+            <li>JWT-authenticated Socket.io rooms separate the shared responder channel, private direct conversations, and disaster incident groups scoped to Bangladesh administrative areas.</li>
+            <li>Browser-side AES-GCM message encryption, RSA-OAEP key wrapping, and RSA-PSS sender signatures; the server stores ciphertext and a recovery-key-encrypted private-key backup.</li>
+            <li>Debounced responder directory search, explicit group membership, and persisted incident, location, and message records.</li>
           </ul>
         </div>
 

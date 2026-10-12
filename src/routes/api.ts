@@ -6,11 +6,358 @@ import { MessagingService } from '../services/messaging';
 import { AlertsService } from '../services/alerts';
 import { CoordinatorDbService } from '../services/coordinatorDb';
 import { DbAdminService } from '../services/dbAdmin';
+import { IncidentService } from '../services/incidents';
+import { OperationsService } from '../services/operations';
+import type { IncidentStatus, ResponseTaskStatus } from '@prisma/client';
+import { JWT_SECRET } from '../lib/authToken';
 import path from 'path';
 import fs from 'fs';
 
 const router = Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'greensignal_ai_secure_jwt_secret_key_2026';
+const incidentSubmissionWindows = new Map<string, number[]>();
+
+function incidentErrorStatus(message: string): number {
+  if (/outside your authorized area|responder account|only field responders|not assigned/i.test(message)) return 403;
+  if (/record to update not found/i.test(message)) return 409;
+  if (/not found/.test(message)) return 404;
+  if (/required|must |choose |select |cannot change|provide a reason|valid locations/i.test(message)) return 400;
+  return 500;
+}
+
+function incidentErrorMessage(error: any, fallback: string): string {
+  const message = error?.message || '';
+  return incidentErrorStatus(message) === 500 ? fallback : message;
+}
+
+function operationsErrorStatus(message: string): number {
+  if (/outside your authorized area|geographic scope|not assigned|only coordinators|only administrators|only field responders|workers can|workers may|responder account|signed-in account|coordinator can/i.test(message)) return 403;
+  if (/record to update not found/i.test(message)) return 409;
+  if (/not found/.test(message)) return 404;
+  if (/required|must |choose |provide |attach |valid |invalid|exceeds|completion notes|no more than|up to /i.test(message)) return 400;
+  if (/cannot change/.test(message)) return 409;
+  return 500;
+}
+
+function operationsError(res: any, error: any, fallback: string) {
+  const message = typeof error?.message === 'string' ? error.message : '';
+  const status = operationsErrorStatus(message);
+  if (status === 500) console.error(fallback, error);
+  return res.status(status).json({ message: status === 500 ? fallback : message });
+}
+
+async function operationsActor(req: any, res: any) {
+  res.set('Cache-Control', 'private, no-store');
+  const user = await MessagingService.authenticate(req.headers.authorization);
+  if (!user) res.status(401).json({ message: 'Sign in to access operations.' });
+  return user;
+}
+
+function boundedPage(value: unknown, fallback: number, max: number): number {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? Math.min(parsed, max) : fallback;
+}
+
+function requesterIdentity(req: any): string {
+  return req.socket?.remoteAddress || 'unknown';
+}
+
+// Publicly verified incident summaries omit reporter details and private status tokens.
+router.get('/incidents/public', async (req, res) => {
+  try {
+    const district = typeof req.query.district === 'string' ? req.query.district.trim().slice(0, 100) : undefined;
+    const result = await IncidentService.listPublicVerified({
+      district,
+      page: boundedPage(req.query.page, 1, 10000),
+      pageSize: boundedPage(req.query.pageSize, 20, 50)
+    });
+    return res.json(result);
+  } catch (err: any) {
+    console.error('Public incident list failed:', err);
+    return res.status(500).json({ message: 'Unable to load verified incident reports.' });
+  }
+});
+
+router.post('/incidents/status', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  try {
+    const { referenceCode, statusAccessToken } = req.body || {};
+    if (typeof referenceCode !== 'string' || typeof statusAccessToken !== 'string') {
+      return res.status(400).json({ message: 'Reference code and status access token are required.' });
+    }
+    const report = await IncidentService.checkReportStatus(referenceCode.trim().toUpperCase(), statusAccessToken);
+    if (!report) return res.status(404).json({ message: 'Report not found or access details are incorrect.' });
+    return res.json(report);
+  } catch (err: any) {
+    console.error('Incident status lookup failed:', err);
+    return res.status(500).json({ message: 'Unable to retrieve report status.' });
+  }
+});
+
+router.post('/incidents', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const now = Date.now();
+  const identity = requesterIdentity(req);
+  const recentRequests = (incidentSubmissionWindows.get(identity) || []).filter(time => now - time < 60 * 60 * 1000);
+  if (recentRequests.length >= 5) {
+    return res.status(429).json({ message: 'Please wait before submitting another incident report.' });
+  }
+  incidentSubmissionWindows.set(identity, [...recentRequests, now]);
+  if (incidentSubmissionWindows.size > 10000) {
+    for (const [key, times] of incidentSubmissionWindows) {
+      if (!times.some(time => now - time < 60 * 60 * 1000)) incidentSubmissionWindows.delete(key);
+    }
+  }
+
+  try {
+    const authorization = req.headers.authorization;
+    const reporter = authorization ? await MessagingService.authenticate(authorization) : null;
+    if (authorization && !reporter) return res.status(401).json({ message: 'Sign in again to submit this report.' });
+    const report = await IncidentService.submitReport(req.body || {}, reporter?.id || null);
+    return res.status(201).json({
+      message: 'Report received. It is unverified until reviewed by an authorized responder.',
+      report
+    });
+  } catch (err: any) {
+    console.error('Incident submission failed:', err);
+    return res.status(incidentErrorStatus(err.message || ''))
+      .json({ message: incidentErrorMessage(err, 'Unable to submit incident report.') });
+  }
+});
+
+router.get('/incidents', async (req, res) => {
+  try {
+    const user = await MessagingService.authenticate(req.headers.authorization);
+    if (!user) return res.status(401).json({ message: 'Sign in as a responder to review reports.' });
+    const status = typeof req.query.status === 'string' ? req.query.status.toUpperCase() : undefined;
+    const validStatuses = ['REPORTED', 'VERIFIED', 'ACTIVE', 'CONTAINED', 'RESOLVED', 'REJECTED', 'DUPLICATE'];
+    if (status && !validStatuses.includes(status)) return res.status(400).json({ message: 'Invalid incident status filter.' });
+    const result = await IncidentService.listForResponders(user.id, {
+      status,
+      page: boundedPage(req.query.page, 1, 10000),
+      pageSize: boundedPage(req.query.pageSize, 20, 50)
+    });
+    return res.json(result);
+  } catch (err: any) {
+    return res.status(incidentErrorStatus(err.message || ''))
+      .json({ message: incidentErrorMessage(err, 'Unable to load incident reports.') });
+  }
+});
+
+router.get('/incidents/:incidentId', async (req, res) => {
+  try {
+    const user = await MessagingService.authenticate(req.headers.authorization);
+    if (!user) return res.status(401).json({ message: 'Sign in as a responder to view this report.' });
+    const incident = await IncidentService.getIncidentDetail(req.params.incidentId, user.id);
+    if (!incident) return res.status(404).json({ message: 'Incident not found.' });
+    return res.json(incident);
+  } catch (err: any) {
+    return res.status(incidentErrorStatus(err.message || ''))
+      .json({ message: incidentErrorMessage(err, 'Unable to load incident details.') });
+  }
+});
+
+router.patch('/incidents/:incidentId/status', async (req, res) => {
+  try {
+    const user = await MessagingService.authenticate(req.headers.authorization);
+    if (!user) return res.status(401).json({ message: 'Sign in as a responder to update incidents.' });
+    const status = typeof req.body?.status === 'string' ? req.body.status.toUpperCase() : '';
+    const validStatuses = ['VERIFIED', 'ACTIVE', 'CONTAINED', 'RESOLVED', 'REJECTED', 'DUPLICATE'];
+    if (!validStatuses.includes(status)) return res.status(400).json({ message: 'Choose a valid next incident status.' });
+    const incident = await IncidentService.updateIncidentStatus(
+      req.params.incidentId,
+      user.id,
+      status as IncidentStatus,
+      typeof req.body?.content === 'string' ? req.body.content : undefined
+    );
+    return res.json({ message: 'Incident status updated and added to the timeline.', incident });
+  } catch (err: any) {
+    return res.status(incidentErrorStatus(err.message || ''))
+      .json({ message: incidentErrorMessage(err, 'Unable to update incident status.') });
+  }
+});
+
+router.get('/operations/tasks', async (req, res) => {
+  try {
+    const user = await operationsActor(req, res);
+    if (!user) return;
+    return res.json(await OperationsService.listTasks(
+      user.id, boundedPage(req.query.page, 1, 10000), boundedPage(req.query.pageSize, 30, 100)
+    ));
+  } catch (error) {
+    return operationsError(res, error, 'Unable to load response tasks.');
+  }
+});
+
+router.post('/operations/tasks', async (req, res) => {
+  try {
+    const user = await operationsActor(req, res);
+    if (!user) return;
+    return res.status(201).json(await OperationsService.createTask(user.id, req.body || {}));
+  } catch (error) {
+    return operationsError(res, error, 'Unable to create response task.');
+  }
+});
+
+router.patch('/operations/tasks/:taskId', async (req, res) => {
+  try {
+    const user = await operationsActor(req, res);
+    if (!user) return;
+    const status = typeof req.body?.status === 'string' ? req.body.status.toUpperCase() : '';
+    const validStatuses = ['OPEN', 'ASSIGNED', 'IN_PROGRESS', 'BLOCKED', 'COMPLETED', 'CANCELLED'];
+    if (!validStatuses.includes(status)) return res.status(400).json({ message: 'Choose a valid task status.' });
+    return res.json(await OperationsService.updateTask(user.id, req.params.taskId, status as ResponseTaskStatus, req.body?.note));
+  } catch (error) {
+    return operationsError(res, error, 'Unable to update response task.');
+  }
+});
+
+router.get('/operations/volunteers', async (req, res) => {
+  try {
+    const user = await operationsActor(req, res);
+    if (!user) return;
+    return res.json(await OperationsService.listVolunteers(user.id));
+  } catch (error) {
+    return operationsError(res, error, 'Unable to load volunteer roster.');
+  }
+});
+
+router.put('/operations/volunteers/me', async (req, res) => {
+  try {
+    const user = await operationsActor(req, res);
+    if (!user) return;
+    return res.json(await OperationsService.updateVolunteerProfile(user.id, req.body || {}));
+  } catch (error) {
+    return operationsError(res, error, 'Unable to update volunteer profile.');
+  }
+});
+
+router.get('/operations/volunteers/me', async (req, res) => {
+  try {
+    const user = await operationsActor(req, res);
+    if (!user) return;
+    return res.json(await OperationsService.getVolunteerProfile(user.id));
+  } catch (error) {
+    return operationsError(res, error, 'Unable to load volunteer profile.');
+  }
+});
+
+router.get('/operations/shelters', async (req, res) => {
+  try {
+    const user = await operationsActor(req, res);
+    if (!user) return;
+    return res.json(await OperationsService.listShelters(user.id));
+  } catch (error) {
+    return operationsError(res, error, 'Unable to load shelter operations.');
+  }
+});
+
+router.patch('/operations/shelters/:shelterId', async (req, res) => {
+  try {
+    const user = await operationsActor(req, res);
+    if (!user) return;
+    return res.json(await OperationsService.updateShelter(user.id, req.params.shelterId, req.body || {}));
+  } catch (error) {
+    return operationsError(res, error, 'Unable to update shelter operations.');
+  }
+});
+
+router.get('/operations/notifications', async (req, res) => {
+  try {
+    const user = await operationsActor(req, res);
+    if (!user) return;
+    return res.json(await OperationsService.listNotifications(user.id));
+  } catch (error) {
+    return operationsError(res, error, 'Unable to load notifications.');
+  }
+});
+
+router.patch('/operations/notifications/:notificationId/read', async (req, res) => {
+  try {
+    const user = await operationsActor(req, res);
+    if (!user) return;
+    return res.json(await OperationsService.markNotificationRead(user.id, req.params.notificationId));
+  } catch (error) {
+    return operationsError(res, error, 'Unable to mark notification as read.');
+  }
+});
+
+router.get('/operations/alert-subscriptions', async (req, res) => {
+  try {
+    const user = await operationsActor(req, res);
+    if (!user) return;
+    return res.json(await OperationsService.listAlertSubscriptions(user.id));
+  } catch (error) {
+    return operationsError(res, error, 'Unable to load alert subscriptions.');
+  }
+});
+
+router.put('/operations/alert-subscriptions', async (req, res) => {
+  try {
+    const user = await operationsActor(req, res);
+    if (!user) return;
+    return res.json(await OperationsService.saveAlertSubscription(user.id, req.body || {}));
+  } catch (error) {
+    return operationsError(res, error, 'Unable to save alert subscription.');
+  }
+});
+
+router.delete('/operations/alert-subscriptions/:subscriptionId', async (req, res) => {
+  try {
+    const user = await operationsActor(req, res);
+    if (!user) return;
+    return res.json(await OperationsService.deleteAlertSubscription(user.id, req.params.subscriptionId));
+  } catch (error) {
+    return operationsError(res, error, 'Unable to remove alert subscription.');
+  }
+});
+
+router.get('/operations/incidents/:incidentId/attachments', async (req, res) => {
+  try {
+    const user = await operationsActor(req, res);
+    if (!user) return;
+    return res.json(await OperationsService.listIncidentAttachments(user.id, req.params.incidentId));
+  } catch (error) {
+    return operationsError(res, error, 'Unable to load incident evidence.');
+  }
+});
+
+router.post('/operations/incidents/:incidentId/attachments', async (req, res) => {
+  try {
+    const user = await operationsActor(req, res);
+    if (!user) return;
+    return res.status(201).json(await OperationsService.addIncidentAttachment(user.id, req.params.incidentId, req.body || {}));
+  } catch (error) {
+    return operationsError(res, error, 'Unable to save incident evidence.');
+  }
+});
+
+router.get('/operations/attachments/:attachmentId', async (req, res) => {
+  try {
+    const user = await operationsActor(req, res);
+    if (!user) return;
+    const attachment = await OperationsService.getIncidentAttachment(user.id, req.params.attachmentId);
+    res.set('Content-Type', attachment.contentType);
+    res.set('Content-Length', String(attachment.fileSize));
+    const fallbackFileName = attachment.fileName.replace(/[^\x20-\x7E"\\]/g, '_').replace(/["\\]/g, '_');
+    res.set('Content-Disposition', `attachment; filename="${fallbackFileName}"; filename*=UTF-8''${encodeURIComponent(attachment.fileName)}`);
+    res.set('Cache-Control', 'private, no-store');
+    return res.send(attachment.content);
+  } catch (error) {
+    return operationsError(res, error, 'Unable to download incident evidence.');
+  }
+});
+
+router.get('/operations/audit', async (req, res) => {
+  try {
+    const user = await operationsActor(req, res);
+    if (!user) return;
+    return res.json(await OperationsService.listAudit(
+      user.id, boundedPage(req.query.page, 1, 10000), boundedPage(req.query.pageSize, 50, 100)
+    ));
+  } catch (error) {
+    return operationsError(res, error, 'Unable to load operational history.');
+  }
+});
 
 // Helper to enrich user with human-readable roleTitle and coordinatorTier
 function enrichUser(u: any) {
@@ -376,21 +723,17 @@ router.get(['/alerts', '/alerts/active'], async (req, res) => {
 
 router.post('/alerts/broadcast', async (req, res) => {
   try {
-    const { title, description, district, severity } = req.body;
-    const alert = await AlertsService.createAlert(
-      title || 'Disaster Warning',
-      description || 'Critical condition observed.',
-      district || 'NATIONWIDE',
-      severity || 'WARNING'
-    );
+    const user = await operationsActor(req, res);
+    if (!user) return;
+    const alert = await OperationsService.broadcastAlert(user.id, req.body || {});
 
     // Emit live alert over Socket.io
     const io = req.app.get('io');
     io?.emit('new_alert', alert);
 
-    return res.json(alert);
-  } catch (err: any) {
-    return res.status(500).json({ message: err.message });
+    return res.status(201).json(alert);
+  } catch (error) {
+    return operationsError(res, error, 'Unable to broadcast disaster alert.');
   }
 });
 
@@ -398,18 +741,12 @@ router.post('/alerts/broadcast', async (req, res) => {
 router.get(['/upazila-context', '/upazila-context/:nodeId'], async (req, res) => {
   try {
     const nodeId = req.params.nodeId;
+    if (!nodeId) return res.status(400).json({ message: 'An administrative node ID is required.' });
 
-    let targetNode = nodeId ? await prisma.administrativeNode.findUnique({
+    const targetNode = await prisma.administrativeNode.findUnique({
       where: { id: nodeId },
       include: { parent: true }
-    }) : null;
-
-    if (!targetNode) {
-      targetNode = await prisma.administrativeNode.findFirst({
-        where: { tier: 'UPAZILA' },
-        include: { parent: true }
-      });
-    }
+    });
 
     if (!targetNode) return res.status(404).json({ message: 'Administrative node not found' });
 
@@ -430,6 +767,8 @@ router.get(['/upazila-context', '/upazila-context/:nodeId'], async (req, res) =>
       where: { districtNodeId: targetNode.id, role: 'COORDINATOR' },
       select: { fullName: true, phone: true, username: true }
     });
+    const hasVerifiedCoordinatorPhone = typeof coordinator?.phone === 'string' &&
+      /^\+?\d{7,15}$/.test(coordinator.phone.trim().replace(/[^\d+]/g, ''));
 
     const districtNodeId = targetNode.parentId || targetNode.id;
     const districtReliefCenters = await prisma.reliefCenter.findMany({
@@ -452,7 +791,7 @@ router.get(['/upazila-context', '/upazila-context/:nodeId'], async (req, res) =>
       upazilaNode: targetNode,
       nearestReliefCenter: reliefCenter,
       sensors,
-      coordinatorContact: coordinator || { fullName: targetNode.name + ' Officer', phone: '+8801700000000', username: 'Coordinator' },
+      coordinatorContact: hasVerifiedCoordinatorPhone ? coordinator : null,
       districtReliefCenters,
       districtSensors
     });
@@ -524,7 +863,7 @@ router.get(['/gis/features', '/gis/map-data', '/gis/overview'], async (req, res)
         longitude: c.longitude,
         capacity: c.capacity || 1000,
         occupancy: c.occupancy || 0,
-        contactNum: c.contactNum || '+8801700000000',
+        contactNum: c.contactNum || null,
         isOperational: c.isOperational ?? true,
         stockPolicy: c.stockPolicy || {},
         currentStock: c.currentStock || {},
@@ -689,16 +1028,93 @@ router.get(['/coordinator/scope-boq/:type/:id', '/coordinator/work-order/scope/:
 });
 
 // 5. Messaging & User Search Routes
+router.get('/messages/keys/me', async (req, res) => {
+  try {
+    const requester = await MessagingService.authenticate(req.headers.authorization);
+    if (!requester) return res.status(401).json({ message: 'Sign in to access secure messaging.' });
+    const [keyRecord] = await MessagingService.getUserEncryptionKeys([requester.id]);
+    return res.json({
+      publicKey: keyRecord?.messagingPublicKey || null,
+      signingPublicKey: keyRecord?.messagingSigningPublicKey || null,
+      privateKeyVault: keyRecord?.messagingPrivateKeyVault || null
+    });
+  } catch (err: any) {
+    return res.status(500).json({ message: err.message });
+  }
+});
+
+router.put('/messages/keys', async (req, res) => {
+  try {
+    const requester = await MessagingService.authenticate(req.headers.authorization);
+    if (!requester) return res.status(401).json({ message: 'Sign in to set up secure messaging.' });
+    if (requester.role === 'CITIZEN') return res.status(403).json({ message: 'Secure field messaging is not available to citizen accounts.' });
+
+    const { publicKey, signingPublicKey, privateKeyVault } = req.body || {};
+    if (
+      !publicKey || publicKey.kty !== 'RSA' || publicKey.alg !== 'RSA-OAEP-256' ||
+      typeof publicKey.n !== 'string' || publicKey.n.length < 300 ||
+      !signingPublicKey || signingPublicKey.kty !== 'RSA' || signingPublicKey.alg !== 'PS256' ||
+      typeof signingPublicKey.n !== 'string' || signingPublicKey.n.length < 300 ||
+      !privateKeyVault || privateKeyVault.version !== 1 ||
+      typeof privateKeyVault.ciphertext !== 'string' || privateKeyVault.ciphertext.length > 10000 ||
+      typeof privateKeyVault.iv !== 'string' || typeof privateKeyVault.salt !== 'string' ||
+      privateKeyVault.iterations !== 310000
+    ) {
+      return res.status(400).json({ message: 'Invalid secure key bundle.' });
+    }
+    const key = await MessagingService.saveUserEncryptionKeys(requester.id, publicKey, signingPublicKey, privateKeyVault);
+    return res.json({
+      publicKey: key.messagingPublicKey,
+      signingPublicKey: key.messagingSigningPublicKey
+    });
+  } catch (err: any) {
+    if (err.message.includes('already registered')) {
+      return res.status(409).json({ message: err.message });
+    }
+    return res.status(500).json({ message: err.message });
+  }
+});
+
+router.post('/messages/groups', async (req, res) => {
+  try {
+    const requester = await MessagingService.authenticate(req.headers.authorization);
+    if (!requester) return res.status(401).json({ message: 'Sign in to create an incident group.' });
+    const hazardType = String(req.body?.hazardType || '').toUpperCase();
+    const allowedHazards = ['FLOOD', 'CYCLONE', 'STORM_SURGE', 'LANDSLIDE', 'FIRE', 'EARTHQUAKE', 'OTHER'];
+    if (!allowedHazards.includes(hazardType)) {
+      return res.status(400).json({ message: 'Choose a supported Bangladesh disaster hazard type.' });
+    }
+    const alertId = typeof req.body?.alertId === 'string' && req.body.alertId.length <= 100
+      ? req.body.alertId
+      : undefined;
+
+    const group = await MessagingService.createDisasterCoordinationGroup(requester.id, hazardType, alertId);
+    const io = req.app.get('io');
+    for (const member of await prisma.coordinationGroupMember.findMany({
+      where: { groupId: group.id },
+      select: { userId: true }
+    })) {
+      io?.to(`user_${member.userId}`).emit('conversation_updated', { channel: group.channel });
+    }
+    return res.status(201).json(group);
+  } catch (err: any) {
+    const status = err.message.includes('Only coordinators') ? 403 :
+      err.message.includes('No other') || err.message.includes('before creating') ||
+      err.message.includes('Assign this account') || err.message.includes('already registered') ||
+      err.message.includes('smaller administrative level') || err.message.includes('no longer active') ? 409 :
+      err.message.includes('outside the leader') ? 403 : 500;
+    return res.status(status).json({ message: err.message });
+  }
+});
+
 router.get(['/messages/conversations', '/messages/senders'], async (req, res) => {
   try {
-    const userId = (req.query.userId as string) || '';
-    if (userId) {
-      const requester = await prisma.user.findUnique({ where: { id: userId } });
-      if (requester && requester.role === 'CITIZEN') {
-        return res.status(403).json({ message: 'Access restricted: Citizens do not have access to the field emergency messenger.' });
-      }
+    const requester = await MessagingService.authenticate(req.headers.authorization);
+    if (!requester) return res.status(401).json({ message: 'Sign in to access messaging.' });
+    if (requester.role === 'CITIZEN') {
+      return res.status(403).json({ message: 'Access restricted: Citizens do not have access to the field emergency messenger.' });
     }
-    const conversations = await MessagingService.getRecentConversations(userId);
+    const conversations = await MessagingService.getRecentConversations(requester.id);
     return res.json(conversations);
   } catch (err: any) {
     return res.status(500).json({ message: err.message });
@@ -708,37 +1124,58 @@ router.get(['/messages/conversations', '/messages/senders'], async (req, res) =>
 router.get('/messages/search-users', async (req, res) => {
   try {
     const q = (req.query.q as string) || '';
-    const userId = (req.query.userId as string) || '';
-    if (userId) {
-      const requester = await prisma.user.findUnique({ where: { id: userId } });
-      if (requester && requester.role === 'CITIZEN') {
-        return res.status(403).json({ message: 'Access restricted: Citizens do not have access to the field emergency messenger.' });
-      }
+    const requester = await MessagingService.authenticate(req.headers.authorization);
+    if (!requester) return res.status(401).json({ message: 'Sign in to search responders.' });
+    if (requester.role === 'CITIZEN') {
+      return res.status(403).json({ message: 'Access restricted: Citizens do not have access to the field emergency messenger.' });
     }
-    const results = await MessagingService.searchUsers(q, userId);
+    const results = await MessagingService.searchUsers(q, requester.id);
     return res.json(results);
   } catch (err: any) {
     return res.status(500).json({ message: err.message });
   }
 });
 
+router.get('/messages/:channel/keys', async (req, res) => {
+  try {
+    const requester = await MessagingService.authenticate(req.headers.authorization);
+    if (!requester) return res.status(401).json({ message: 'Sign in to access secure messaging.' });
+    if (!(await MessagingService.canAccessChannel(requester.id, req.params.channel))) {
+      return res.status(403).json({ message: 'You do not have access to this conversation.' });
+    }
+    const recipients = await MessagingService.getChannelEncryptionRecipients(requester.id, req.params.channel);
+    const missingKeyCount = recipients.filter((recipient: {
+      messagingPublicKey: unknown;
+      messagingSigningPublicKey: unknown;
+    }) => !recipient.messagingPublicKey || !recipient.messagingSigningPublicKey).length;
+    if (missingKeyCount) {
+      return res.status(409).json({ message: `${missingKeyCount} conversation member(s) must set up secure messaging first.` });
+    }
+    return res.json({ recipients: recipients.map((recipient: {
+      id: string;
+      messagingPublicKey: unknown;
+      messagingSigningPublicKey: unknown;
+    }) => ({
+      id: recipient.id,
+      publicKey: recipient.messagingPublicKey,
+      signingPublicKey: recipient.messagingSigningPublicKey
+    })) });
+  } catch (err: any) {
+    const status = err.message.includes('too large') ? 409 : 400;
+    return res.status(status).json({ message: err.message });
+  }
+});
+
 router.get(['/messages/:channel', '/messages/channel/:channel'], async (req, res) => {
   try {
     const channel = req.params.channel;
-    const userId = (req.query.userId as string) || '';
-
-    if (userId) {
-      const requester = await prisma.user.findUnique({ where: { id: userId } });
-      if (requester && requester.role === 'CITIZEN') {
-        return res.status(403).json({ message: 'Access restricted: Citizens do not have access to the field emergency messenger.' });
-      }
+    const requester = await MessagingService.authenticate(req.headers.authorization);
+    if (!requester) return res.status(401).json({ message: 'Sign in to access messaging.' });
+    if (requester.role === 'CITIZEN') {
+      return res.status(403).json({ message: 'Access restricted: Citizens do not have access to the field emergency messenger.' });
     }
-
-    // If channel is direct message, verify user belongs to it
-    if (channel.startsWith('direct-') && userId) {
-      if (!channel.includes(userId)) {
-        return res.status(403).json({ message: 'Forbidden: You are not a participant in this conversation' });
-      }
+    if (!(await MessagingService.canAccessChannel(requester.id, channel))) {
+      return res.status(403).json({ message: 'You do not have access to this conversation.' });
     }
 
     const history = await MessagingService.getChannelHistory(channel);
@@ -751,6 +1188,19 @@ router.get(['/messages/:channel', '/messages/channel/:channel'], async (req, res
 // ==========================================
 // 6. DB Manager Developer Routes
 // ==========================================
+
+router.use('/db-admin', async (req, res, next) => {
+  if (req.path === '/impersonate' && process.env.NODE_ENV === 'development') return next();
+  try {
+    const user = await MessagingService.authenticate(req.headers.authorization);
+    if (!user) return res.status(401).json({ message: 'Sign in as an administrator to manage database records.' });
+    if (user.role !== 'ADMIN') return res.status(403).json({ message: 'Only administrators can manage database records.' });
+    return next();
+  } catch (error) {
+    console.error('Database administrator authorization failed:', error);
+    return res.status(500).json({ message: 'Unable to authorize database administration.' });
+  }
+});
 
 router.get('/db-admin/tables', async (req, res) => {
   try {

@@ -320,7 +320,7 @@ async function main() {
         longitude: row.lng,
         capacity: 1000,
         occupancy: 150,
-        contactNum: '+8801700000000',
+        contactNum: null,
         isOperational: true,
         stockPolicy: { beds: 600, food_packs: 1200, medical_kits: 300, vehicles: 6, tents: 80 },
         currentStock: { beds: 420, food_packs: 850, medical_kits: 180, vehicles: 4, tents: 50 },

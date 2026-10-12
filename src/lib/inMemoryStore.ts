@@ -39,6 +39,19 @@ export class InMemoryStore {
   reliefCenters: any[] = [];
   chatMessages: any[] = [];
   disasterAlerts: any[] = [];
+  disasterIncidents: any[] = [];
+  incidentUpdates: any[] = [];
+  coordinationGroups: any[] = [];
+  coordinationGroupMembers: any[] = [];
+  volunteerProfiles: any[] = [];
+  responseTasks: any[] = [];
+  responseTaskAssignees: any[] = [];
+  responseTaskUpdates: any[] = [];
+  userNotifications: any[] = [];
+  alertSubscriptions: any[] = [];
+  incidentAttachments: any[] = [];
+  shelterOccupancyUpdates: any[] = [];
+  operationalAudits: any[] = [];
   responsePolicies: any[] = [];
   simulationRuns: any[] = [];
 
@@ -68,6 +81,9 @@ export class InMemoryStore {
       incidents: [],
       situationReport: { status: 'STABLE', summary: 'All regional divisions operating within standard preparedness parameters', last_updated: new Date().toISOString(), updated_by: 'National Command Center' },
       messages: [],
+      messagingPublicKey: null,
+      messagingSigningPublicKey: null,
+      messagingPrivateKeyVault: null,
       createdAt: new Date(),
       updatedAt: new Date()
     };
@@ -242,12 +258,15 @@ export class InMemoryStore {
         longitude: r.lng,
         capacity: 1000,
         occupancy: 150,
-        contactNum: '+8801700000000',
+        contactNum: null,
         isOperational: true,
         stockPolicy: { beds: 600, food_packs: 1200, medical_kits: 300, vehicles: 6, tents: 80 },
         currentStock: { beds: 420, food_packs: 850, medical_kits: 180, vehicles: 4, tents: 50 },
         emergencyRequirement: { beds: 80, food_packs: 200, medical_kits: 50, vehicles: 2, tents: 20 },
         restockingRequirement: { beds: 180, food_packs: 350, medical_kits: 120, vehicles: 2, tents: 30 },
+        verificationStatus: 'UNVERIFIED',
+        verifiedAt: null,
+        verifiedById: null,
         createdAt: new Date(),
         updatedAt: new Date()
       };
@@ -338,20 +357,20 @@ export class InMemoryStore {
     this.addUser('Adamdighi Citizen', 'CITIZEN', adamdighiUpz.id, 'Adamdighi Citizen', 'citizen.adamdighi@dmr.bd.gov');
     this.addUser('adamdighi_citizen', 'CITIZEN', adamdighiUpz.id, 'Adamdighi Citizen', 'citizen.adamdighi@dmr.bd.gov');
     this.addUser('citizen1', 'CITIZEN', adamdighiUpz.id, 'Adamdighi Citizen', 'citizen1@dmr.bd.gov');
-    this.addUser('Adamdighi Coordinator', 'COORDINATOR', adamdighiUpz.id, 'Adamdighi Disaster Coordinator', 'coord.adamdighi@dmr.bd.gov', '+8801712345678');
-    this.addUser('adamdighi_coordinator', 'COORDINATOR', adamdighiUpz.id, 'Adamdighi Disaster Coordinator', 'coord.adamdighi@dmr.bd.gov', '+8801712345678');
-    this.addUser('Coordinator1', 'COORDINATOR', adamdighiUpz.id, 'Adamdighi Disaster Coordinator', 'coordinator1@dmr.bd.gov', '+8801712345678');
-    this.addUser('adamdighi_worker', 'WORKER', adamdighiUpz.id, 'Adamdighi Field Responder', 'worker.adamdighi@dmr.bd.gov', '+8801711112222');
-    this.addUser('adamdighi_planner', 'PLANNER', boguraDist.id, 'Bogura District Planner', 'planner.adamdighi@dmr.bd.gov', '+8801733334444');
-    this.addUser('Bogura Coordinator', 'COORDINATOR', boguraDist.id, 'Bogura District Relief Officer', 'coord.bogura@dmr.bd.gov', '+8801798765432');
-    this.addUser('Rajshahi Coordinator', 'COORDINATOR', rajshahiDiv.id, 'Rajshahi Division Director', 'coord.rajshahi@dmr.bd.gov', '+8801755555555');
-    this.addUser('Dhaka Coordinator', 'COORDINATOR', dhakaDiv.id, 'Dhaka Division Director', 'coord.dhaka@dmr.bd.gov', '+8801751112233');
-    this.addUser('dhaka_coordinator', 'COORDINATOR', dhakaDiv.id, 'Dhaka Division Coordinator', 'coord.dhaka@dmr.bd.gov', '+8801751112233');
-    this.addUser('Dhaka District Coordinator', 'COORDINATOR', dhakaDist.id, 'Dhaka District Relief Officer', 'coord.dhakadist@dmr.bd.gov', '+8801759998877');
-    this.addUser('National Coordinator', 'COORDINATOR', nationalNode.id, 'National Disaster Coordinator', 'national.coord@dmr.bd.gov', '+8801700112233');
-    this.addUser('national_coordinator', 'COORDINATOR', nationalNode.id, 'National Disaster Coordinator', 'national.coord@dmr.bd.gov', '+8801700112233');
-    this.addUser('Admin', 'ADMIN', nationalNode.id, 'National HQ Administrator', 'admin@dmr.bd.gov', '+8801700000000');
-    this.addUser('planner.bogura', 'PLANNER', boguraDist.id, 'Bogura District Planner', 'planner.bogura@dmr.bd.gov', '+8801744444444');
+    this.addUser('Adamdighi Coordinator', 'COORDINATOR', adamdighiUpz.id, 'Adamdighi Disaster Coordinator', 'coord.adamdighi@dmr.bd.gov');
+    this.addUser('adamdighi_coordinator', 'COORDINATOR', adamdighiUpz.id, 'Adamdighi Disaster Coordinator', 'coord.adamdighi@dmr.bd.gov');
+    this.addUser('Coordinator1', 'COORDINATOR', adamdighiUpz.id, 'Adamdighi Disaster Coordinator', 'coordinator1@dmr.bd.gov');
+    this.addUser('adamdighi_worker', 'WORKER', adamdighiUpz.id, 'Adamdighi Field Responder', 'worker.adamdighi@dmr.bd.gov');
+    this.addUser('adamdighi_planner', 'PLANNER', boguraDist.id, 'Bogura District Planner', 'planner.adamdighi@dmr.bd.gov');
+    this.addUser('Bogura Coordinator', 'COORDINATOR', boguraDist.id, 'Bogura District Relief Officer', 'coord.bogura@dmr.bd.gov');
+    this.addUser('Rajshahi Coordinator', 'COORDINATOR', rajshahiDiv.id, 'Rajshahi Division Director', 'coord.rajshahi@dmr.bd.gov');
+    this.addUser('Dhaka Coordinator', 'COORDINATOR', dhakaDiv.id, 'Dhaka Division Director', 'coord.dhaka@dmr.bd.gov');
+    this.addUser('dhaka_coordinator', 'COORDINATOR', dhakaDiv.id, 'Dhaka Division Coordinator', 'coord.dhaka@dmr.bd.gov');
+    this.addUser('Dhaka District Coordinator', 'COORDINATOR', dhakaDist.id, 'Dhaka District Relief Officer', 'coord.dhakadist@dmr.bd.gov');
+    this.addUser('National Coordinator', 'COORDINATOR', nationalNode.id, 'National Disaster Coordinator', 'national.coord@dmr.bd.gov');
+    this.addUser('national_coordinator', 'COORDINATOR', nationalNode.id, 'National Disaster Coordinator', 'national.coord@dmr.bd.gov');
+    this.addUser('Admin', 'ADMIN', nationalNode.id, 'National HQ Administrator', 'admin@dmr.bd.gov');
+    this.addUser('planner.bogura', 'PLANNER', boguraDist.id, 'Bogura District Planner', 'planner.bogura@dmr.bd.gov');
 
     // 4. Disaster Alerts
     this.disasterAlerts.push({
@@ -426,7 +445,7 @@ export class InMemoryStore {
       passwordHash: getDefaultHash(),
       fullName: fullName || username,
       role: role,
-      phone: phone || '+8801700000000',
+      phone: phone || null,
       organization: role === 'COORDINATOR' ? 'Disaster Management Committee' : role === 'WORKER' ? 'Red Crescent Field Team' : role === 'PLANNER' ? 'Planning Commission' : 'Citizen Community',
       districtNodeId: districtNodeId,
       messages: [],
@@ -446,11 +465,11 @@ function matchesWhere(item: any, where: any, store: InMemoryStore): boolean {
   if (!where || Object.keys(where).length === 0) return true;
 
   if (where.OR && Array.isArray(where.OR)) {
-    return where.OR.some((clause: any) => matchesWhere(item, clause, store));
+    if (!where.OR.some((clause: any) => matchesWhere(item, clause, store))) return false;
   }
 
   if (where.AND && Array.isArray(where.AND)) {
-    return where.AND.every((clause: any) => matchesWhere(item, clause, store));
+    if (!where.AND.every((clause: any) => matchesWhere(item, clause, store))) return false;
   }
 
   if (where.NOT) {
@@ -461,6 +480,14 @@ function matchesWhere(item: any, where: any, store: InMemoryStore): boolean {
 
   for (const key of Object.keys(where)) {
     if (key === 'OR' || key === 'AND' || key === 'NOT') continue;
+    if (key === 'groupId_userId') {
+      if (item.groupId !== where[key].groupId || item.userId !== where[key].userId) return false;
+      continue;
+    }
+    if (key === 'userId_administrativeNodeId') {
+      if (item.userId !== where[key].userId || item.administrativeNodeId !== where[key].administrativeNodeId) return false;
+      continue;
+    }
     const expected = where[key];
     const actual = item[key];
 
@@ -478,6 +505,18 @@ function matchesWhere(item: any, where: any, store: InMemoryStore): boolean {
       if (!matchesWhere(parentNode, expected, store)) return false;
       continue;
     }
+    if (key === 'assignees' && expected?.some) {
+      const matches = store.responseTaskAssignees.some(entry =>
+        entry.taskId === item.id && matchesWhere(entry, expected.some, store)
+      );
+      if (!matches) return false;
+      continue;
+    }
+    if (key === 'volunteerProfile' && expected && typeof expected === 'object') {
+      const profile = store.volunteerProfiles.find(entry => entry.userId === item.id);
+      if (!profile || !matchesWhere(profile, expected, store)) return false;
+      continue;
+    }
 
     // Direct object filters
     if (expected && typeof expected === 'object') {
@@ -485,6 +524,8 @@ function matchesWhere(item: any, where: any, store: InMemoryStore): boolean {
         if (!expected.in.includes(actual)) return false;
         continue;
       }
+      if (expected.gte !== undefined && !(actual >= expected.gte)) return false;
+      if (expected.lte !== undefined && !(actual <= expected.lte)) return false;
       if (expected.not !== undefined) {
         if (actual === expected.not) return false;
         continue;
@@ -532,6 +573,10 @@ function expandIncludes(modelName: string, item: any, include: any, store: InMem
     if (include.districtNode) {
       clone.districtNode = store.administrativeNodes.find(n => n.id === clone.districtNodeId) || null;
     }
+    if (include.volunteerProfile) {
+      const profile = store.volunteerProfiles.find(entry => entry.userId === clone.id) || null;
+      clone.volunteerProfile = profile;
+    }
   }
 
   if (modelName === 'administrativeNode') {
@@ -556,13 +601,73 @@ function expandIncludes(modelName: string, item: any, include: any, store: InMem
 
   if (modelName === 'reliefCenter') {
     if (include.districtNode) {
-      clone.districtNode = store.administrativeNodes.find(n => n.id === clone.districtNodeId) || null;
+      const node = store.administrativeNodes.find(n => n.id === clone.districtNodeId) || null;
+      clone.districtNode = node && include.districtNode.select ? projectSelect(node, include.districtNode.select) : node;
+    }
+  }
+
+  if (modelName === 'responseTask') {
+    if (include.administrativeNode) {
+      const node = store.administrativeNodes.find(entry => entry.id === clone.administrativeNodeId) || null;
+      clone.administrativeNode = node && include.administrativeNode.select
+        ? projectSelect(node, include.administrativeNode.select)
+        : node;
+    }
+    if (include.assignees) {
+      clone.assignees = store.responseTaskAssignees
+        .filter(entry => entry.taskId === clone.id)
+        .map(entry => {
+          if (!include.assignees.include?.user) return entry;
+          const user = store.users.find(candidate => candidate.id === entry.userId);
+          return {
+            ...entry,
+            user: user ? projectSelect(user, include.assignees.include.user.select) : null
+          };
+        });
+    }
+    if (include.updates) {
+      const order = include.updates.orderBy?.createdAt === 'asc' ? 1 : -1;
+      clone.updates = store.responseTaskUpdates
+        .filter(entry => entry.taskId === clone.id)
+        .sort((a, b) => order * (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()))
+        .map(entry => {
+          if (!include.updates.include?.author) return entry;
+          const author = store.users.find(candidate => candidate.id === entry.authorId);
+          return { ...entry, author: author ? projectSelect(author, include.updates.include.author.select) : null };
+        });
+    }
+  }
+
+  if (modelName === 'volunteerProfile' && include.user) {
+    const user = store.users.find(candidate => candidate.id === clone.userId);
+    clone.user = user ? projectSelect(user, include.user.select) : null;
+  }
+
+  if (modelName === 'alertSubscription' && include.administrativeNode) {
+    const node = store.administrativeNodes.find(entry => entry.id === clone.administrativeNodeId);
+    clone.administrativeNode = node ? projectSelect(node, include.administrativeNode.select) : null;
+  }
+
+  if (modelName === 'incidentAttachment' && include.incident) {
+    const incident = store.disasterIncidents.find(entry => entry.id === clone.incidentId);
+    clone.incident = incident ? projectSelect(incident, include.incident.select) : null;
+  }
+
+  if (modelName === 'operationalAudit') {
+    if (include.actor) {
+      const actor = store.users.find(candidate => candidate.id === clone.actorId);
+      clone.actor = actor ? projectSelect(actor, include.actor.select) : null;
+    }
+    if (include.administrativeNode) {
+      const node = store.administrativeNodes.find(entry => entry.id === clone.administrativeNodeId);
+      clone.administrativeNode = node ? projectSelect(node, include.administrativeNode.select) : null;
     }
   }
 
   if (modelName === 'sensorNode') {
     if (include.districtNode) {
-      clone.districtNode = store.administrativeNodes.find(n => n.id === clone.districtNodeId) || null;
+      const node = store.administrativeNodes.find(n => n.id === clone.districtNodeId) || null;
+      clone.districtNode = node && include.districtNode.select ? projectSelect(node, include.districtNode.select) : node;
     }
   }
 
@@ -582,6 +687,16 @@ function expandIncludes(modelName: string, item: any, include: any, store: InMem
       } else {
         clone.sender = null;
       }
+    }
+  }
+
+  if (modelName === 'incidentUpdate' && include.author) {
+    const author = store.users.find(user => user.id === clone.authorId);
+    if (author) {
+      const select = typeof include.author === 'object' ? include.author.select : null;
+      clone.author = select ? projectSelect(author, select) : author;
+    } else {
+      clone.author = null;
     }
   }
 
@@ -607,7 +722,7 @@ function createModelAdapter(modelName: string, getList: () => any[], store: InMe
       const list = getList();
       const found = list.find(item => matchesWhere(item, args.where, store));
       if (!found) return null;
-      let expanded = expandIncludes(modelName, found, args.include, store);
+      let expanded = expandIncludes(modelName, found, args.include || args.select, store);
       if (args.select) expanded = projectSelect(expanded, args.select);
       return expanded;
     },
@@ -617,7 +732,7 @@ function createModelAdapter(modelName: string, getList: () => any[], store: InMe
       const where = args?.where || {};
       const found = list.find(item => matchesWhere(item, where, store));
       if (!found) return null;
-      let expanded = expandIncludes(modelName, found, args?.include, store);
+      let expanded = expandIncludes(modelName, found, args?.include || args?.select, store);
       if (args?.select) expanded = projectSelect(expanded, args.select);
       return expanded;
     },
@@ -628,11 +743,15 @@ function createModelAdapter(modelName: string, getList: () => any[], store: InMe
       let filtered = list.filter(item => matchesWhere(item, where, store));
 
       if (args?.orderBy) {
-        const orderKey = Object.keys(args.orderBy)[0];
-        const dir = args.orderBy[orderKey];
+        const orderRules = Array.isArray(args.orderBy) ? args.orderBy : [args.orderBy];
         filtered.sort((a, b) => {
-          if (dir === 'desc') return (b[orderKey] > a[orderKey] ? 1 : -1);
-          return (a[orderKey] > b[orderKey] ? 1 : -1);
+          for (const rule of orderRules) {
+            const orderKey = Object.keys(rule)[0];
+            const dir = rule[orderKey];
+            if (a[orderKey] === b[orderKey]) continue;
+            return dir === 'desc' ? (b[orderKey] > a[orderKey] ? 1 : -1) : (a[orderKey] > b[orderKey] ? 1 : -1);
+          }
+          return 0;
         });
       }
 
@@ -640,7 +759,7 @@ function createModelAdapter(modelName: string, getList: () => any[], store: InMe
       if (args?.take) filtered = filtered.slice(0, args.take);
 
       return filtered.map(item => {
-        let expanded = expandIncludes(modelName, item, args?.include, store);
+        let expanded = expandIncludes(modelName, item, args?.include || args?.select, store);
         if (args?.select) expanded = projectSelect(expanded, args.select);
         return expanded;
       });
@@ -648,9 +767,28 @@ function createModelAdapter(modelName: string, getList: () => any[], store: InMe
 
     async create(args: { data: any; include?: any; select?: any }) {
       const list = getList();
+      const data = { ...args.data };
+      if (modelName === 'userNotification' && data.readAt === undefined) data.readAt = null;
+      if (modelName === 'responseTask' && data.assignees?.create) {
+        const assignments = data.assignees.create;
+        delete data.assignees;
+        const record = {
+          id: data.id || `${modelName}-${crypto.randomUUID()}`,
+          ...data,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        };
+        list.push(record);
+        for (const assignment of assignments) {
+          store.responseTaskAssignees.push({ taskId: record.id, userId: assignment.userId, assignedAt: new Date() });
+        }
+        let expanded = expandIncludes(modelName, record, args.include, store);
+        if (args.select) expanded = projectSelect(expanded, args.select);
+        return expanded;
+      }
       const record = {
-        id: args.data.id || `${modelName}-${crypto.randomUUID()}`,
-        ...args.data,
+        id: data.id || `${modelName}-${crypto.randomUUID()}`,
+        ...data,
         createdAt: new Date(),
         updatedAt: new Date()
       };
@@ -658,6 +796,19 @@ function createModelAdapter(modelName: string, getList: () => any[], store: InMe
       let expanded = expandIncludes(modelName, record, args.include, store);
       if (args.select) expanded = projectSelect(expanded, args.select);
       return expanded;
+    },
+
+    async createMany(args: { data: any[] }) {
+      const list = getList();
+      for (const data of args.data) {
+        list.push({
+          id: data.id || `${modelName}-${crypto.randomUUID()}`,
+          ...data,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        });
+      }
+      return { count: args.data.length };
     },
 
     async update(args: { where: any; data: any; include?: any; select?: any }) {
@@ -675,6 +826,18 @@ function createModelAdapter(modelName: string, getList: () => any[], store: InMe
       let expanded = expandIncludes(modelName, updated, args.include, store);
       if (args.select) expanded = projectSelect(expanded, args.select);
       return expanded;
+    },
+
+    async updateMany(args: { where?: any; data: any }) {
+      const list = getList();
+      const where = args.where || {};
+      let count = 0;
+      for (let i = 0; i < list.length; i++) {
+        if (!matchesWhere(list[i], where, store)) continue;
+        list[i] = { ...list[i], ...args.data, updatedAt: new Date() };
+        count++;
+      }
+      return { count };
     },
 
     async upsert(args: { where: any; update: any; create: any; include?: any; select?: any }) {
@@ -750,6 +913,19 @@ export function createInMemoryPrismaClient() {
     reliefCenter: createModelAdapter('reliefCenter', () => store.reliefCenters, store),
     chatMessage: createModelAdapter('chatMessage', () => store.chatMessages, store),
     disasterAlert: createModelAdapter('disasterAlert', () => store.disasterAlerts, store),
+    disasterIncident: createModelAdapter('disasterIncident', () => store.disasterIncidents, store),
+    incidentUpdate: createModelAdapter('incidentUpdate', () => store.incidentUpdates, store),
+    coordinationGroup: createModelAdapter('coordinationGroup', () => store.coordinationGroups, store),
+    coordinationGroupMember: createModelAdapter('coordinationGroupMember', () => store.coordinationGroupMembers, store),
+    volunteerProfile: createModelAdapter('volunteerProfile', () => store.volunteerProfiles, store),
+    responseTask: createModelAdapter('responseTask', () => store.responseTasks, store),
+    responseTaskAssignee: createModelAdapter('responseTaskAssignee', () => store.responseTaskAssignees, store),
+    responseTaskUpdate: createModelAdapter('responseTaskUpdate', () => store.responseTaskUpdates, store),
+    userNotification: createModelAdapter('userNotification', () => store.userNotifications, store),
+    alertSubscription: createModelAdapter('alertSubscription', () => store.alertSubscriptions, store),
+    incidentAttachment: createModelAdapter('incidentAttachment', () => store.incidentAttachments, store),
+    shelterOccupancyUpdate: createModelAdapter('shelterOccupancyUpdate', () => store.shelterOccupancyUpdates, store),
+    operationalAudit: createModelAdapter('operationalAudit', () => store.operationalAudits, store),
     responsePolicy: createModelAdapter('responsePolicy', () => store.responsePolicies, store),
     simulationRun: createModelAdapter('simulationRun', () => store.simulationRuns, store),
 
@@ -765,6 +941,29 @@ export function createInMemoryPrismaClient() {
     async $executeRawUnsafe(query: string) {
       console.log('[InMemoryStore] Raw execute executed:', query);
       return 1;
+    },
+
+    async $transaction<T>(callback: (transaction: any) => Promise<T>): Promise<T> {
+      const collections = [
+        'users', 'administrativeNodes', 'sensorNodes', 'reliefCenters', 'chatMessages',
+        'disasterAlerts', 'disasterIncidents', 'incidentUpdates', 'coordinationGroups',
+        'coordinationGroupMembers', 'volunteerProfiles', 'responseTasks',
+        'responseTaskAssignees', 'responseTaskUpdates', 'userNotifications',
+        'alertSubscriptions', 'incidentAttachments', 'shelterOccupancyUpdates',
+        'operationalAudits'
+      ] as const;
+      const snapshot = new Map<string, any[]>();
+      for (const collection of collections) {
+        snapshot.set(collection, structuredClone(store[collection]));
+      }
+      try {
+        return await callback(client);
+      } catch (error) {
+        for (const collection of collections) {
+          store[collection].splice(0, store[collection].length, ...(snapshot.get(collection) || []));
+        }
+        throw error;
+      }
     }
   };
 

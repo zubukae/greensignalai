@@ -367,7 +367,7 @@ export class CoordinatorDbService {
       upazilas,
       districts,
       totalStock,
-      coordinatorContact: coordinatorContact || { fullName: userNode.name + ' Coordinator', phone: '+8801700000000', username: 'Coordinator' }
+      coordinatorContact
     };
   }
 

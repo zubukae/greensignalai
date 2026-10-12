@@ -20,6 +20,7 @@
 
   <!-- Socket.io Client -->
   <script src="/socket.io/socket.io.js"></script>
+  <script src="/js/messaging-crypto.js"></script>
 
   <!-- Chart.js for Time-Series Graphs & Predictions -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -1698,25 +1699,111 @@
         <h2 class="text-xs font-bold text-rose-500 uppercase tracking-wider flex items-center gap-1.5">
           <i class="fa-solid fa-triangle-exclamation animate-pulse"></i> Active Crisis Alerts
         </h2>
-        <span class="text-[10px] text-slate-400 font-medium">Updated Live</span>
+        <span class="text-[10px] text-amber-300 font-medium">Confirm warnings with Bangladesh Meteorological Department / DDM</span>
       </div>
       <div id="alertBannerList" class="space-y-2.5">
-        <!-- Dynamically Populated Alerts (Jet Black in Dark Mode, Crisp Light in Day Mode) -->
-        <div class="alert-banner-item bg-black border-2 border-emerald-500 p-3.5 rounded-xl flex items-start gap-3 shadow-md text-white transition-all hover:shadow-lg">
-          <i class="fa-solid fa-circle-check text-emerald-400 text-lg mt-0.5 shrink-0"></i>
-          <div class="flex-1">
-            <div class="text-xs font-bold tracking-wide uppercase flex items-center justify-between gap-2">
-              <span class="alert-title text-emerald-400 font-bold">System Monitoring Active</span>
-              <span class="alert-badge px-2 py-0.5 rounded font-mono font-bold text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800">NORMAL</span>
+        <p class="rounded-xl border border-amber-800/70 bg-amber-950/40 p-3 text-xs leading-relaxed text-amber-100">
+          This platform may contain demonstration or delayed records and is not an official warning service. Do not interpret an empty feed as an all-clear.
+        </p>
+      </div>
+    </section>
+
+    <!-- Citizen reporting and incident status -->
+    <section id="incidentServiceSection" class="rounded-2xl border border-slate-800 bg-slate-900 p-4 shadow-xl md:p-5">
+      <div class="mb-4 flex flex-wrap items-start justify-between gap-3 border-b border-slate-800 pb-3">
+        <div>
+          <h2 data-i18n="incidentHubTitle" class="text-sm font-bold uppercase tracking-wider text-white">Report an incident</h2>
+          <p data-i18n="incidentHubDescription" class="mt-1 max-w-3xl text-xs leading-relaxed text-slate-400">
+            Submit a local hazard report without an account, or sign in. Reports remain unverified until an authorized responder reviews them.
+          </p>
+        </div>
+        <label class="flex items-center gap-2 text-xs text-slate-300">
+          <span data-i18n="languageLabel">Language</span>
+          <select id="incidentLanguageSelect" onchange="setIncidentLanguage(this.value)" class="rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-1.5 text-xs text-white">
+            <option value="en">English</option>
+            <option value="bn">বাংলা</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="grid gap-4 lg:grid-cols-2">
+        <form id="incidentReportForm" onsubmit="submitIncidentReport(event)" class="space-y-3 rounded-xl border border-slate-800 bg-slate-950/60 p-3.5">
+          <h3 data-i18n="submitReportTitle" class="text-xs font-bold uppercase tracking-wide text-emerald-300">Submit a report</h3>
+          <label class="block text-xs text-slate-300">
+            <span data-i18n="reportTitleLabel">Short title</span>
+            <input name="title" maxlength="120" required class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white" placeholder="e.g. Floodwater entering homes">
+          </label>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <label class="block text-xs text-slate-300">
+              <span data-i18n="hazardLabel">Hazard</span>
+              <select name="hazardType" required class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white">
+                <option value="CYCLONE">Cyclone</option><option value="STORM_SURGE">Storm surge</option>
+                <option value="FLOOD">Flood</option><option value="FLASH_FLOOD">Flash flood</option>
+                <option value="HEAVY_RAIN">Heavy rain</option><option value="WATERLOGGING">Waterlogging</option>
+                <option value="LANDSLIDE">Landslide</option><option value="LIGHTNING">Lightning</option>
+                <option value="EARTHQUAKE">Earthquake</option><option value="DROUGHT">Drought</option>
+                <option value="EXTREME_HEAT">Extreme heat</option><option value="OTHER">Other</option>
+              </select>
+            </label>
+            <label class="block text-xs text-slate-300">
+              <span data-i18n="areaLabel">District or upazila</span>
+              <select name="districtNodeId" id="incidentAreaSelect" required class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white">
+                <option value="">Loading areas…</option>
+              </select>
+            </label>
+          </div>
+          <label class="block text-xs text-slate-300">
+            <span data-i18n="descriptionLabel">What happened? Include only details you know.</span>
+            <textarea name="description" minlength="10" maxlength="4000" required rows="3" class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white" placeholder="Describe the location and observed impacts. Avoid sharing private information about affected people."></textarea>
+          </label>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <label class="block text-xs text-slate-300"><span data-i18n="unionLabel">Union / locality (optional)</span><input name="unionName" maxlength="100" class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"></label>
+            <label class="block text-xs text-slate-300"><span data-i18n="villageLabel">Village / ward (optional)</span><input name="village" maxlength="100" class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"></label>
+          </div>
+          <details class="rounded-lg border border-slate-800 px-3 py-2">
+            <summary data-i18n="impactOptional" class="cursor-pointer text-xs font-semibold text-slate-300">Impact and coordinates (optional)</summary>
+            <div class="mt-3 grid gap-3 sm:grid-cols-2">
+              <label class="text-xs text-slate-300"><span data-i18n="affectedLabel">People affected</span><input name="peopleAffected" type="number" min="0" max="10000000" step="1" class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"></label>
+              <label class="text-xs text-slate-300"><span data-i18n="displacedLabel">Households displaced</span><input name="householdsDisplaced" type="number" min="0" max="10000000" step="1" class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"></label>
+              <label class="text-xs text-slate-300"><span data-i18n="latitudeLabel">Latitude (Bangladesh)</span><input name="latitude" type="number" min="20.3" max="26.7" step="any" class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"></label>
+              <label class="text-xs text-slate-300"><span data-i18n="longitudeLabel">Longitude (Bangladesh)</span><input name="longitude" type="number" min="88" max="92.8" step="any" class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"></label>
             </div>
-            <p class="alert-desc text-xs text-slate-300 leading-relaxed mt-1 font-normal">No critical flash flood warnings detected in your upazila at this time. Telemetry networks operating nominally.</p>
-            <div class="alert-meta text-[10px] text-slate-400 mt-1.5 flex items-center gap-2 font-medium">
-              <span><i class="fa-solid fa-tower-broadcast mr-1 text-emerald-400"></i>National Grid</span>
-              <span>•</span>
-              <span>Live Sentinel</span>
+            <button type="button" onclick="useIncidentLocation()" data-i18n="useLocation" class="mt-3 rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-200 hover:bg-slate-800">Use my location</button>
+          </details>
+          <p data-i18n="privacyNotice" class="text-[11px] leading-relaxed text-slate-400">Your report is public to responders; do not include names, phone numbers, or sensitive personal details.</p>
+          <button id="incidentSubmitButton" type="submit" data-i18n="submitButton" class="w-full rounded-lg bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-emerald-600">Submit report</button>
+          <div id="incidentSubmitResult" role="status" aria-live="polite" class="hidden rounded-lg border border-slate-700 p-3 text-xs text-slate-200"></div>
+        </form>
+
+        <div class="space-y-4">
+          <form id="incidentStatusForm" onsubmit="lookupIncidentStatus(event)" class="space-y-3 rounded-xl border border-slate-800 bg-slate-950/60 p-3.5">
+            <h3 data-i18n="trackReportTitle" class="text-xs font-bold uppercase tracking-wide text-sky-300">Check a report</h3>
+            <p data-i18n="trackReportDescription" class="text-xs leading-relaxed text-slate-400">Use the reference code and private access key shown after submission. The key is not stored on this device.</p>
+            <label class="block text-xs text-slate-300"><span data-i18n="referenceLabel">Reference code</span><input name="referenceCode" required autocomplete="off" class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"></label>
+            <label class="block text-xs text-slate-300"><span data-i18n="accessKeyLabel">Private access key</span><input name="statusAccessToken" required type="password" autocomplete="off" class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"></label>
+            <button type="submit" data-i18n="checkStatusButton" class="rounded-lg bg-sky-700 px-4 py-2 text-xs font-semibold text-white hover:bg-sky-600">Check status</button>
+            <div id="incidentStatusResult" role="status" aria-live="polite" class="hidden max-h-64 space-y-2 overflow-y-auto rounded-lg border border-slate-700 p-3 text-xs text-slate-200"></div>
+          </form>
+
+          <div class="rounded-xl border border-slate-800 bg-slate-950/60 p-3.5">
+            <div class="mb-2 flex items-center justify-between gap-2">
+              <h3 data-i18n="verifiedReportsTitle" class="text-xs font-bold uppercase tracking-wide text-slate-200">Verified local reports</h3>
+              <button type="button" onclick="loadIncidentReports()" data-i18n="refreshButton" class="rounded-md border border-slate-700 px-2 py-1 text-[11px] text-slate-300 hover:bg-slate-800">Refresh</button>
             </div>
+            <div id="publicIncidentList" class="space-y-2 text-xs text-slate-300" aria-live="polite">Loading verified reports…</div>
           </div>
         </div>
+      </div>
+
+      <div id="responderIncidentSection" class="mt-4 hidden rounded-xl border border-indigo-800/70 bg-indigo-950/20 p-3.5">
+        <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <div>
+            <h3 data-i18n="responderQueueTitle" class="text-xs font-bold uppercase tracking-wide text-indigo-200">Area-scoped responder review queue</h3>
+            <p data-i18n="responderQueueDescription" class="mt-1 text-[11px] text-slate-400">Only reports in your assigned administrative area are returned by the server.</p>
+          </div>
+          <button type="button" onclick="loadResponderIncidents()" data-i18n="refreshButton" class="rounded-md border border-indigo-800 px-2 py-1 text-[11px] text-indigo-200 hover:bg-indigo-900/50">Refresh</button>
+        </div>
+        <div id="responderIncidentList" class="space-y-2" aria-live="polite"></div>
       </div>
     </section>
 
@@ -1747,36 +1834,18 @@
       <h2 class="text-xs font-bold text-indigo-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
         <i class="fa-solid fa-microchip"></i> Upazila Sensor Telemetry
       </h2>
+      <p class="mb-2 text-[11px] text-amber-300">Readings may be demonstration or delayed data; verify critical conditions with official sources.</p>
       <div id="sensorCardsGrid" class="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <!-- Sensor Cards Populated Dynamically -->
-        <div class="bg-slate-900 border border-slate-800 p-3 rounded-xl">
-          <div class="text-slate-400 text-[10px] flex items-center justify-between">WATER LEVEL <i class="fa-solid fa-water text-blue-400"></i></div>
-          <div class="text-base font-bold font-mono text-white mt-1">2.1m</div>
-          <div class="text-[10px] text-emerald-400">Normal Threshold</div>
-        </div>
-        <div class="bg-slate-900 border border-slate-800 p-3 rounded-xl">
-          <div class="text-slate-400 text-[10px] flex items-center justify-between">WIND SPEED <i class="fa-solid fa-wind text-teal-400"></i></div>
-          <div class="text-base font-bold font-mono text-white mt-1">18 km/h</div>
-          <div class="text-[10px] text-emerald-400">Moderate Breeze</div>
-        </div>
-        <div class="bg-slate-900 border border-slate-800 p-3 rounded-xl">
-          <div class="text-slate-400 text-[10px] flex items-center justify-between">SALINITY <i class="fa-solid fa-flask text-amber-400"></i></div>
-          <div class="text-base font-bold font-mono text-white mt-1">2.4 ppt</div>
-          <div class="text-[10px] text-emerald-400">Potable</div>
-        </div>
-        <div class="bg-slate-900 border border-slate-800 p-3 rounded-xl">
-          <div class="text-slate-400 text-[10px] flex items-center justify-between">SEISMOGRAPH <i class="fa-solid fa-wave-square text-rose-400"></i></div>
-          <div class="text-base font-bold font-mono text-white mt-1">1.2 M</div>
-          <div class="text-[10px] text-emerald-400">Stable</div>
-        </div>
+        <p class="col-span-full rounded-xl border border-slate-800 bg-slate-900 p-3 text-xs text-slate-400">No sensor readings are available for this area.</p>
       </div>
     </section>
 
     <!-- 4. CALL UPAZILA COORDINATOR BUTTON (Visible ONLY for Citizens) -->
     <section id="callCoordinatorSection" class="w-full hidden">
-      <a id="callCoordinatorBtn" href="tel:+8801700000000" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-4 rounded-xl shadow-lg transition flex items-center justify-center gap-2 text-xs md:text-sm">
+      <p id="coordinatorContactUnavailable" class="rounded-xl border border-slate-800 bg-slate-900 p-3 text-xs text-slate-400">No verified phone contact is listed for this area.</p>
+      <a id="callCoordinatorBtn" href="#" class="hidden w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 px-4 rounded-xl shadow-lg transition flex items-center justify-center gap-2 text-xs md:text-sm">
         <i class="fa-solid fa-phone-volume text-base"></i>
-        <span>Call Upazila Disaster Coordinator (<span id="coordNameText">Adamdighi Officer</span>)</span>
+        <span>Call Upazila Disaster Coordinator (<span id="coordNameText">Coordinator</span>)</span>
       </a>
     </section>
 
@@ -1875,14 +1944,14 @@
                 Interactive Disaster GIS & Telemetry Map
               </h2>
               <span id="mapScopeBadge" class="text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-indigo-950 text-indigo-300 border border-indigo-800">
-                Rajshahi Division • 68 Shelters • 272 Sensors
+                Regional locations
               </span>
-              <span class="inline-flex items-center gap-1.5 text-[10px] font-medium text-emerald-400 bg-emerald-950/60 border border-emerald-800/60 px-2 py-0.5 rounded-full">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span> Live Telemetry
+              <span class="inline-flex items-center gap-1.5 text-[10px] font-medium text-amber-300 bg-amber-950/60 border border-amber-800/60 px-2 py-0.5 rounded-full">
+                Location records may be demonstration data
               </span>
             </div>
             <p class="text-xs text-slate-400 mt-0.5">
-              Click any Relief Center or Sensor marker on the map to inspect live capacity, stocks, and real-time telemetry readings.
+              Click a shelter or sensor marker to inspect its recorded details. Verify availability and current conditions with local authorities.
             </p>
           </div>
         </div>
@@ -1963,6 +2032,87 @@
       </div>
     </section>
 
+    <section id="operationsSection" class="hidden rounded-2xl border border-slate-800 bg-slate-900 p-4 shadow-xl md:p-5">
+      <div class="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
+        <div>
+          <h2 class="text-sm font-bold uppercase tracking-wider text-white">Response operations</h2>
+          <p class="mt-1 text-xs text-slate-400">Assignments, shelter status, alerts, and private account notifications.</p>
+        </div>
+        <button type="button" onclick="loadOperationsDashboard()" class="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-200 hover:bg-slate-800">Refresh</button>
+      </div>
+      <div id="operationsMessage" role="status" aria-live="polite" class="mb-3 hidden rounded-lg border border-slate-700 p-2 text-xs"></div>
+      <div class="grid gap-4 xl:grid-cols-2">
+        <section class="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+          <h3 class="text-xs font-bold uppercase text-emerald-300">My volunteer availability</h3>
+          <form id="volunteerProfileForm" onsubmit="saveVolunteerProfile(event)" class="mt-2 space-y-2">
+            <label class="block text-xs text-slate-300">Skills (comma-separated)
+              <input name="skills" maxlength="1800" placeholder="First aid, boat operation, translation" class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white">
+            </label>
+            <label class="block text-xs text-slate-300">Availability note
+              <input name="availabilityNote" maxlength="500" class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white">
+            </label>
+            <label class="flex items-center gap-2 text-xs text-slate-300"><input name="isAvailable" type="checkbox"> I am available to help</label>
+            <button class="rounded-lg bg-emerald-700 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-600">Save profile</button>
+          </form>
+        </section>
+        <section class="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+          <h3 class="text-xs font-bold uppercase text-amber-300">Alert subscriptions</h3>
+          <form id="alertSubscriptionForm" onsubmit="saveAlertSubscription(event)" class="mt-2 grid gap-2 sm:grid-cols-2">
+            <label class="text-xs text-slate-300">District or upazila
+              <select name="administrativeNodeId" id="subscriptionAreaSelect" required class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"><option value="">Loading areas…</option></select>
+            </label>
+            <label class="text-xs text-slate-300">Minimum severity
+              <select name="minimumSeverity" class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"><option>INFO</option><option>WARNING</option><option>CRITICAL</option></select>
+            </label>
+            <label class="text-xs text-slate-300 sm:col-span-2">Hazards (blank means all; comma-separated)
+              <input name="hazardTypes" placeholder="FLOOD, CYCLONE, STORM_SURGE" class="mt-1 w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white">
+            </label>
+            <button class="w-fit rounded-lg bg-amber-700 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-600">Save subscription</button>
+          </form>
+          <div id="alertSubscriptionList" class="mt-3 space-y-2 text-xs text-slate-300"></div>
+        </section>
+        <section id="alertBroadcastPanel" class="hidden rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+          <h3 class="text-xs font-bold uppercase text-rose-300">Broadcast an operational alert</h3>
+          <form onsubmit="broadcastOperationsAlert(event)" class="mt-2 space-y-2">
+            <input name="title" maxlength="160" required placeholder="Alert title" class="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white">
+            <textarea name="description" maxlength="4000" required rows="2" placeholder="Verified operational information and recommended action" class="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"></textarea>
+            <div class="grid gap-2 sm:grid-cols-2">
+              <select name="areaId" id="alertBroadcastAreaSelect" required class="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"><option value="">Select alert area</option></select>
+              <select name="severity" class="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"><option value="WARNING">Warning</option><option value="INFO">Information</option><option value="CRITICAL">Critical</option></select>
+              <input name="hazardType" maxlength="40" placeholder="Hazard e.g. FLOOD (optional)" class="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white sm:col-span-2">
+            </div>
+            <p class="text-[10px] text-amber-200">App broadcasts are not official BMD/DDM warnings. Nationwide broadcasts are administrator-only.</p>
+            <button class="rounded-lg bg-rose-800 px-3 py-2 text-xs font-semibold text-white hover:bg-rose-700">Broadcast alert to matching subscribers</button>
+          </form>
+        </section>
+        <section class="rounded-xl border border-slate-800 bg-slate-950/60 p-3 xl:col-span-2">
+          <div class="flex items-center justify-between gap-2">
+            <h3 class="text-xs font-bold uppercase text-indigo-300">My notifications</h3>
+            <span id="notificationCount" class="text-[10px] text-slate-400"></span>
+          </div>
+          <div id="operationsNotifications" class="mt-2 grid gap-2 md:grid-cols-2"></div>
+        </section>
+        <section id="responseTaskPanel" class="hidden rounded-xl border border-slate-800 bg-slate-950/60 p-3 xl:col-span-2">
+          <h3 class="text-xs font-bold uppercase text-cyan-300">Response tasks</h3>
+          <form id="responseTaskForm" onsubmit="createResponseTask(event)" class="mt-2 grid gap-2 md:grid-cols-2">
+            <input name="title" maxlength="160" required placeholder="Task title" class="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white">
+            <select name="administrativeNodeId" id="taskAreaSelect" required class="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"><option value="">Select task area</option></select>
+            <textarea name="description" maxlength="5000" required rows="2" placeholder="Task instructions" class="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white md:col-span-2"></textarea>
+            <select name="priority" class="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white"><option value="NORMAL">Normal priority</option><option value="LOW">Low</option><option value="HIGH">High</option><option value="URGENT">Urgent</option></select>
+            <input name="dueAt" type="datetime-local" aria-label="Due date" class="rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white">
+            <div id="taskAssigneeChoices" class="max-h-36 overflow-y-auto rounded-lg border border-slate-700 p-2 text-xs text-slate-300 md:col-span-2">Load volunteer roster to choose assignees.</div>
+            <button class="w-fit rounded-lg bg-cyan-700 px-3 py-2 text-xs font-semibold text-white hover:bg-cyan-600">Create and assign task</button>
+          </form>
+          <div class="mt-4 grid gap-2 lg:grid-cols-2">
+            <div><h4 class="text-xs font-semibold text-slate-300">Team and individual assignments</h4><div id="responseTaskList" class="mt-2 space-y-2"></div></div>
+            <div id="shelterOperationsPanel" class="hidden"><h4 class="text-xs font-semibold text-slate-300">Shelter verification and occupancy</h4><div id="shelterOperationsList" class="mt-2 space-y-2"></div></div>
+          </div>
+          <div id="volunteerRosterPanel" class="mt-4 hidden"><h4 class="text-xs font-semibold text-slate-300">Volunteer skills and availability</h4><div id="volunteerRosterList" class="mt-2 grid gap-2 md:grid-cols-2"></div></div>
+          <div id="auditPanel" class="mt-4 hidden"><h4 class="text-xs font-semibold text-slate-300">Operational audit history</h4><div id="operationsAuditList" class="mt-2 space-y-2"></div></div>
+        </section>
+      </div>
+    </section>
+
   </main>
 
   <!-- SLIDE-IN MESSENGER DRAWER (WhatsApp & Facebook Messenger Style) -->
@@ -2002,6 +2152,27 @@
           <button id="clearSenderSearchBtn" onclick="clearSenderSearch()" class="hidden absolute right-2.5 top-2 text-slate-500 hover:text-white text-xs">
             <i class="fa-solid fa-circle-xmark"></i>
           </button>
+        </div>
+
+        <div class="px-3 py-2 border-b border-slate-800 bg-slate-900/70 space-y-2 shrink-0">
+          <div class="flex items-center justify-between gap-2">
+            <p id="secureMessagingStatus" class="text-[10px] text-amber-300">End-to-end encryption is locked.</p>
+            <button id="secureMessagingAction" onclick="openSecureMessaging()" class="text-[10px] font-semibold text-indigo-300 hover:text-white underline">Set up</button>
+          </div>
+          <div id="incidentGroupTools" class="hidden flex items-center gap-2">
+            <select id="incidentHazardType" aria-label="Disaster type" class="min-w-0 flex-1 bg-slate-950 border border-slate-700 rounded-lg px-2 py-1.5 text-[10px] text-white">
+              <option value="FLOOD">Flood</option>
+              <option value="CYCLONE">Cyclone</option>
+              <option value="STORM_SURGE">Storm surge</option>
+              <option value="LANDSLIDE">Landslide</option>
+              <option value="FIRE">Fire</option>
+              <option value="EARTHQUAKE">Earthquake</option>
+              <option value="OTHER">Other emergency</option>
+            </select>
+            <button id="createIncidentGroupBtn" onclick="createIncidentCoordinationGroup()" class="shrink-0 bg-rose-700 hover:bg-rose-600 disabled:opacity-40 text-white rounded-lg px-2.5 py-1.5 text-[10px] font-semibold" disabled>
+              <i class="fa-solid fa-people-group mr-1"></i>Start local response group
+            </button>
+          </div>
         </div>
         
         <!-- Filter Tabs: All, Coordinators, Workers, Planners -->
@@ -2095,13 +2266,42 @@
 
       <!-- Input Composer Bar -->
       <div class="p-2.5 border-t border-slate-800 bg-slate-950 flex items-center space-x-2 shrink-0">
-        <input type="text" id="chatMessageInput" onkeypress="if(event.key==='Enter') sendChatMessage()" placeholder="Type a message..." 
+        <input type="text" id="chatMessageInput" maxlength="4000" aria-label="Encrypted message" onkeypress="if(event.key==='Enter') sendChatMessage()" placeholder="Type a secure message..."
                class="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500">
-        <button onclick="sendChatMessage()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded-lg transition font-semibold text-xs flex items-center gap-1.5 shadow">
+        <button id="sendChatMessageBtn" onclick="sendChatMessage()" class="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-3 py-2 rounded-lg transition font-semibold text-xs flex items-center gap-1.5 shadow">
           <span>Send</span>
           <i class="fa-solid fa-paper-plane text-xs"></i>
         </button>
       </div>
+    </div>
+  </div>
+
+  <div id="secureMessagingModal" class="fixed inset-0 bg-slate-950/90 backdrop-blur-sm z-[60] flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg p-5 sm:p-6 shadow-2xl space-y-4">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <h3 class="text-sm font-bold text-white">Secure messaging keys</h3>
+          <p id="secureMessagingModalDescription" class="mt-1 text-xs text-slate-300">Your private key is encrypted on this device before it is backed up.</p>
+        </div>
+        <button onclick="closeSecureMessaging()" class="text-slate-400 hover:text-white" aria-label="Close secure messaging setup"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div id="secureMessagingRecoveryDisplay" class="hidden space-y-2">
+        <p class="text-xs text-amber-200">Save this recovery key somewhere private. It is shown once; without it, this account’s encrypted messages cannot be recovered on another device.</p>
+        <textarea id="secureMessagingRecoveryKey" readonly rows="2" class="w-full rounded-lg bg-slate-950 border border-amber-700/70 p-3 text-xs text-white break-all"></textarea>
+        <button onclick="copySecureMessagingRecoveryKey()" class="rounded-lg border border-slate-700 px-3 py-1.5 text-[10px] font-semibold text-slate-200 hover:bg-slate-800">Copy recovery key</button>
+        <label class="flex items-start gap-2 text-xs text-slate-300">
+          <input id="secureMessagingRecoveryConfirmed" type="checkbox" class="mt-0.5 accent-indigo-500">
+          I saved this recovery key in a safe place.
+        </label>
+        <button onclick="saveNewSecureMessagingKeys()" class="w-full rounded-lg bg-indigo-600 hover:bg-indigo-500 px-3 py-2 text-xs font-semibold text-white">I saved it — enable encryption</button>
+      </div>
+      <div id="secureMessagingUnlockForm" class="hidden space-y-2">
+        <label for="secureMessagingRecoveryInput" class="block text-xs font-semibold text-slate-200">Recovery key</label>
+        <input id="secureMessagingRecoveryInput" type="password" autocomplete="off" spellcheck="false" class="w-full rounded-lg bg-slate-950 border border-slate-700 p-3 text-xs text-white" placeholder="Paste your saved recovery key">
+        <p id="secureMessagingUnlockError" class="hidden text-xs text-rose-300"></p>
+        <button onclick="unlockSecureMessaging()" class="w-full rounded-lg bg-indigo-600 hover:bg-indigo-500 px-3 py-2 text-xs font-semibold text-white">Unlock on this device</button>
+      </div>
+      <p class="text-[10px] leading-relaxed text-slate-500">Messages are encrypted and sender-signed in your browser. The server stores ciphertext, public keys, and an encrypted key backup, plus message timing and membership metadata. Keys are pinned on first contact; verify identities through a trusted separate channel for high-risk messages. Account password reset cannot recover messages.</p>
     </div>
   </div>
 
@@ -2166,6 +2366,13 @@
     let map = null;
     let activeChannel = 'upazila-general';
     let currentReliefCenterId = null;
+    let secureMessagingState = null;
+    let secureMessagingPrivateKey = null;
+    let pendingSecureKeyBundle = null;
+    let pendingSecureRecoveryKey = '';
+    let activeHistoryRequest = 0;
+    let isSendingChatMessage = false;
+    let isCreatingIncidentGroup = false;
 
     // Theme Configuration Registry
     const THEME_REGISTRY = [
@@ -2274,6 +2481,10 @@
 
     // Handle User Log Out
     function handlePlatformLogout() {
+      secureMessagingPrivateKey = null;
+      secureMessagingState = null;
+      pendingSecureKeyBundle = null;
+      pendingSecureRecoveryKey = '';
       localStorage.removeItem('user');
       localStorage.removeItem('token');
       localStorage.removeItem('greensignal_user');
@@ -2292,6 +2503,9 @@
       initMap();
       initSocket();
       loadAlerts();
+      setIncidentLanguage(localStorage.getItem('greensignal_language') || 'en');
+      loadIncidentAreas();
+      loadIncidentReports();
 
       // Check if URL has ?openMessenger=1 (only for non-citizens)
       const urlParams = new URLSearchParams(window.location.search);
@@ -2335,6 +2549,7 @@
       }
 
       updateAuthNavButtons();
+      refreshIncidentRoleUI();
 
       // Close navigation dropdown when clicking outside
       document.addEventListener('click', (event) => {
@@ -2380,14 +2595,240 @@
       gisState.markersLayer = L.layerGroup().addTo(map);
     }
 
+    function getMessagingToken() {
+      return localStorage.getItem('greensignal_token') || localStorage.getItem('token') || '';
+    }
+
+    function messagingHeaders() {
+      return { Authorization: `Bearer ${getMessagingToken()}` };
+    }
+
+    function updateSecureMessagingStatus() {
+      const status = document.getElementById('secureMessagingStatus');
+      const action = document.getElementById('secureMessagingAction');
+      const createGroup = document.getElementById('createIncidentGroupBtn');
+      const canLeadGroup = ['COORDINATOR', 'ADMIN'].includes(currentUser?.role);
+      const groupTools = document.getElementById('incidentGroupTools');
+      if (groupTools) groupTools.classList.toggle('hidden', !canLeadGroup);
+      if (status) {
+        status.textContent = secureMessagingPrivateKey
+          ? '🔒 End-to-end encrypted on this device'
+          : secureMessagingState?.publicKey
+            ? 'Secure chat locked — unlock to read and send'
+            : 'Set up end-to-end encryption to use chat';
+        status.className = `text-[10px] ${secureMessagingPrivateKey ? 'text-emerald-300' : 'text-amber-300'}`;
+      }
+      if (action) action.textContent = secureMessagingState?.publicKey ? 'Unlock' : 'Set up';
+      if (createGroup) createGroup.disabled = !secureMessagingPrivateKey;
+    }
+
+    async function loadSecureMessagingState() {
+      secureMessagingPrivateKey = null;
+      secureMessagingState = null;
+      updateSecureMessagingStatus();
+      if (!currentUser || currentUser.role === 'CITIZEN' || !getMessagingToken()) return;
+      try {
+        const response = await fetch('/api/messages/keys/me', { headers: messagingHeaders() });
+        if (!response.ok) throw new Error(`Failed to load encryption settings (HTTP ${response.status}).`);
+        secureMessagingState = await response.json();
+      } catch (error) {
+        console.warn('Unable to load secure messaging settings:', error);
+      }
+      updateSecureMessagingStatus();
+    }
+
+    async function openSecureMessaging() {
+      const modal = document.getElementById('secureMessagingModal');
+      const description = document.getElementById('secureMessagingModalDescription');
+      const recoveryDisplay = document.getElementById('secureMessagingRecoveryDisplay');
+      const unlockForm = document.getElementById('secureMessagingUnlockForm');
+      const unlockError = document.getElementById('secureMessagingUnlockError');
+      if (!modal || !window.MessagingCrypto || !window.isSecureContext || !window.crypto?.subtle) {
+        alert('Secure messaging requires a modern browser and an HTTPS connection.');
+        return;
+      }
+      modal.classList.remove('hidden');
+      recoveryDisplay.classList.add('hidden');
+      unlockForm.classList.add('hidden');
+      unlockError.classList.add('hidden');
+      if (secureMessagingState?.publicKey && secureMessagingState?.privateKeyVault) {
+        description.textContent = 'Enter the recovery key you saved when setting up encrypted messaging.';
+        unlockForm.classList.remove('hidden');
+        document.getElementById('secureMessagingRecoveryInput').focus();
+        return;
+      }
+      description.textContent = 'Create your personal encryption keys. The recovery key is required to unlock chats on another device.';
+      try {
+        pendingSecureRecoveryKey = window.MessagingCrypto.randomRecoveryKey();
+        pendingSecureKeyBundle = await window.MessagingCrypto.createUserKeys(pendingSecureRecoveryKey);
+        document.getElementById('secureMessagingRecoveryKey').value = pendingSecureRecoveryKey;
+        document.getElementById('secureMessagingRecoveryConfirmed').checked = false;
+        recoveryDisplay.classList.remove('hidden');
+      } catch (error) {
+        console.error('Unable to create secure messaging keys:', error);
+        description.textContent = 'Key creation failed. Refresh this page and try again.';
+      }
+    }
+
+    async function saveNewSecureMessagingKeys() {
+      if (!pendingSecureKeyBundle || !document.getElementById('secureMessagingRecoveryConfirmed').checked) {
+        alert('Save your recovery key before enabling encryption.');
+        return;
+      }
+      try {
+        const response = await fetch('/api/messages/keys', {
+          method: 'PUT',
+          headers: { ...messagingHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            publicKey: pendingSecureKeyBundle.publicKey,
+            signingPublicKey: pendingSecureKeyBundle.signingPublicKey,
+            privateKeyVault: pendingSecureKeyBundle.privateKeyVault
+          })
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message || 'Unable to save secure keys.');
+        secureMessagingState = {
+          publicKey: result.publicKey,
+          signingPublicKey: result.signingPublicKey,
+          privateKeyVault: pendingSecureKeyBundle.privateKeyVault
+        };
+        secureMessagingPrivateKey = pendingSecureKeyBundle.privateKeys;
+        pendingSecureKeyBundle = null;
+        pendingSecureRecoveryKey = '';
+        closeSecureMessaging();
+        updateSecureMessagingStatus();
+        joinMessagingChannel(activeChannel);
+        loadRecentSendersList();
+      } catch (error) {
+        alert(error.message || 'Unable to save secure keys.');
+      }
+    }
+
+    async function copySecureMessagingRecoveryKey() {
+      try {
+        await navigator.clipboard.writeText(document.getElementById('secureMessagingRecoveryKey').value);
+      } catch (error) {
+        console.warn('Clipboard copy was blocked:', error);
+        alert('Copy is unavailable. Select the recovery key text and copy it manually.');
+      }
+    }
+
+    async function unlockSecureMessaging() {
+      const recoveryKey = document.getElementById('secureMessagingRecoveryInput').value.trim();
+      const errorEl = document.getElementById('secureMessagingUnlockError');
+      if (!recoveryKey) {
+        errorEl.textContent = 'Enter your saved recovery key.';
+        errorEl.classList.remove('hidden');
+        return;
+      }
+      try {
+        secureMessagingPrivateKey = await window.MessagingCrypto.unlockPrivateKey(
+          recoveryKey,
+          secureMessagingState.publicKey,
+          secureMessagingState.privateKeyVault
+        );
+        document.getElementById('secureMessagingRecoveryInput').value = '';
+        closeSecureMessaging();
+        updateSecureMessagingStatus();
+        joinMessagingChannel(activeChannel);
+        if (messengerViewState === 'CHAT') await loadChannelMessages(activeChannel);
+      } catch (error) {
+        console.warn('Secure messaging unlock failed:', error);
+        errorEl.textContent = 'That recovery key did not unlock this account’s secure key backup.';
+        errorEl.classList.remove('hidden');
+      }
+    }
+
+    function closeSecureMessaging() {
+      document.getElementById('secureMessagingModal')?.classList.add('hidden');
+      document.getElementById('secureMessagingRecoveryInput').value = '';
+      document.getElementById('secureMessagingRecoveryKey').value = '';
+      document.getElementById('secureMessagingRecoveryConfirmed').checked = false;
+      pendingSecureKeyBundle = null;
+      pendingSecureRecoveryKey = '';
+    }
+
+    async function createIncidentCoordinationGroup(alertId, selectedHazardType) {
+      if (isCreatingIncidentGroup) return;
+      if (!secureMessagingPrivateKey) {
+        openSecureMessaging();
+        return;
+      }
+      const button = document.getElementById('createIncidentGroupBtn');
+      const hazardType = selectedHazardType || document.getElementById('incidentHazardType').value;
+      isCreatingIncidentGroup = true;
+      if (button) button.disabled = true;
+      try {
+        const response = await fetch('/api/messages/groups', {
+          method: 'POST',
+          headers: { ...messagingHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ hazardType, alertId })
+        });
+        const group = await response.json();
+        if (!response.ok) throw new Error(group.message || 'Unable to create the incident group.');
+        await loadRecentSendersList();
+        await enterChatWithSender(
+          group.id,
+          group.channel,
+          group.name,
+          `${group.memberCount} responders`,
+          'fa-people-group',
+          'bg-rose-600',
+          '',
+          'Incident response team'
+        );
+        if (group.excludedUnconfiguredCount > 0) {
+          alert(`${group.memberCount} responders were added. ${group.excludedUnconfiguredCount} local responder(s) need to set up secure messaging before they can join.`);
+        }
+      } catch (error) {
+        alert(error.message || 'Unable to create the incident group.');
+      } finally {
+        isCreatingIncidentGroup = false;
+        if (button) button.disabled = !secureMessagingPrivateKey;
+      }
+    }
+
+    async function getEncryptedMessageText(message) {
+      if (!message.encryptionVersion) return `Legacy message (not end-to-end encrypted): ${message.text}`;
+      if (!secureMessagingPrivateKey) return '🔒 Encrypted message — unlock secure chat to read';
+      try {
+        return await window.MessagingCrypto.decryptMessage(
+          message,
+          currentUser.id,
+          message.senderId,
+          secureMessagingPrivateKey,
+          message.sender?.messagingSigningPublicKey
+        );
+      } catch (error) {
+        console.warn('Could not decrypt message:', error);
+        return '🔒 Unable to decrypt — this account may not have been a conversation member when it was sent';
+      }
+    }
+
+    function refreshSocketAuthentication() {
+      if (!socket) return;
+      socket.auth = { token: getMessagingToken() };
+      if (socket.connected) socket.disconnect();
+      socket.connect();
+    }
+
+    function joinMessagingChannel(channel) {
+      if (!socket || !currentUser || currentUser.role === 'CITIZEN') return;
+      socket.emit('join_channel', channel, (result) => {
+        if (!result?.ok) console.warn('Unable to join messaging channel:', result?.error);
+      });
+    }
+
     // 2. Initialize Socket.io
     function initSocket() {
-      socket = io();
+      socket = io({ auth: { token: getMessagingToken() } });
       socket.on('connect', () => {
-        if (currentUser?.id) {
-          socket.emit('join_user', currentUser.id);
+        if (currentUser && currentUser.role !== 'CITIZEN' && getMessagingToken()) {
+          joinMessagingChannel(activeChannel);
         }
-        socket.emit('join_channel', activeChannel);
+      });
+      socket.on('connect_error', (error) => {
+        console.warn('Messaging socket connection failed:', error.message);
       });
 
       socket.on('new_message', (msg) => {
@@ -2403,6 +2844,287 @@
       });
     }
 
+    const incidentTranslations = {
+      en: {
+        incidentHubTitle: 'Report an incident',
+        incidentHubDescription: 'Submit a local hazard report without an account, or sign in. Reports remain unverified until an authorized responder reviews them.',
+        languageLabel: 'Language',
+        submitReportTitle: 'Submit a report',
+        reportTitleLabel: 'Short title',
+        hazardLabel: 'Hazard',
+        areaLabel: 'District or upazila',
+        descriptionLabel: 'What happened? Include only details you know.',
+        unionLabel: 'Union / locality (optional)',
+        villageLabel: 'Village / ward (optional)',
+        impactOptional: 'Impact and coordinates (optional)',
+        affectedLabel: 'People affected',
+        displacedLabel: 'Households displaced',
+        latitudeLabel: 'Latitude (Bangladesh)',
+        longitudeLabel: 'Longitude (Bangladesh)',
+        useLocation: 'Use my location',
+        privacyNotice: 'Your report is public to responders; do not include names, phone numbers, or sensitive personal details.',
+        submitButton: 'Submit report',
+        trackReportTitle: 'Check a report',
+        trackReportDescription: 'Use the reference code and private access key shown after submission. The key is not stored on this device.',
+        referenceLabel: 'Reference code',
+        accessKeyLabel: 'Private access key',
+        checkStatusButton: 'Check status',
+        verifiedReportsTitle: 'Verified local reports',
+        refreshButton: 'Refresh',
+        responderQueueTitle: 'Area-scoped responder review queue',
+        responderQueueDescription: 'Only reports in your assigned administrative area are returned by the server.'
+      },
+      bn: {
+        incidentHubTitle: 'দুর্যোগের প্রতিবেদন করুন',
+        incidentHubDescription: 'অ্যাকাউন্ট ছাড়াই বা সাইন ইন করে স্থানীয় দুর্যোগের প্রতিবেদন জমা দিন। অনুমোদিত সাড়া-দাতা যাচাই না করা পর্যন্ত প্রতিবেদনটি অযাচাইকৃত থাকবে।',
+        languageLabel: 'ভাষা',
+        submitReportTitle: 'প্রতিবেদন জমা দিন',
+        reportTitleLabel: 'সংক্ষিপ্ত শিরোনাম',
+        hazardLabel: 'দুর্যোগের ধরন',
+        areaLabel: 'জেলা বা উপজেলা',
+        descriptionLabel: 'কি ঘটেছে? শুধু জানা তথ্য লিখুন।',
+        unionLabel: 'ইউনিয়ন / এলাকা (ঐচ্ছিক)',
+        villageLabel: 'গ্রাম / ওয়ার্ড (ঐচ্ছিক)',
+        impactOptional: 'ক্ষয়ক্ষতি ও অবস্থান (ঐচ্ছিক)',
+        affectedLabel: 'ক্ষতিগ্রস্ত মানুষ',
+        displacedLabel: 'বাস্তুচ্যুত পরিবার',
+        latitudeLabel: 'অক্ষাংশ (বাংলাদেশ)',
+        longitudeLabel: 'দ্রাঘিমাংশ (বাংলাদেশ)',
+        useLocation: 'আমার অবস্থান ব্যবহার করুন',
+        privacyNotice: 'প্রতিবেদনটি সাড়া-দাতারা দেখতে পাবেন; নাম, ফোন নম্বর বা সংবেদনশীল ব্যক্তিগত তথ্য দেবেন না।',
+        submitButton: 'প্রতিবেদন জমা দিন',
+        trackReportTitle: 'প্রতিবেদনের অবস্থা দেখুন',
+        trackReportDescription: 'জমা দেওয়ার পর দেখানো রেফারেন্স কোড ও ব্যক্তিগত অ্যাক্সেস কী ব্যবহার করুন। কীটি এই ডিভাইসে সংরক্ষিত হয় না।',
+        referenceLabel: 'রেফারেন্স কোড',
+        accessKeyLabel: 'ব্যক্তিগত অ্যাক্সেস কী',
+        checkStatusButton: 'অবস্থা দেখুন',
+        verifiedReportsTitle: 'যাচাইকৃত স্থানীয় প্রতিবেদন',
+        refreshButton: 'হালনাগাদ',
+        responderQueueTitle: 'এলাকাভিত্তিক সাড়া-দাতা যাচাই তালিকা',
+        responderQueueDescription: 'সার্ভার শুধু আপনার নির্ধারিত প্রশাসনিক এলাকার প্রতিবেদন দেখায়।'
+      }
+    };
+
+    function setIncidentLanguage(language) {
+      const activeLanguage = language === 'bn' ? 'bn' : 'en';
+      localStorage.setItem('greensignal_language', activeLanguage);
+      document.documentElement.lang = activeLanguage;
+      const selector = document.getElementById('incidentLanguageSelect');
+      if (selector) selector.value = activeLanguage;
+      document.querySelectorAll('[data-i18n]').forEach(element => {
+        const key = element.getAttribute('data-i18n');
+        const translation = incidentTranslations[activeLanguage][key];
+        if (translation) element.textContent = translation;
+      });
+    }
+
+    function incidentAuthHeaders() {
+      const token = getMessagingToken();
+      return token ? { Authorization: `Bearer ${token}` } : {};
+    }
+
+    function refreshIncidentRoleUI() {
+      const queue = document.getElementById('responderIncidentSection');
+      const canReview = ['WORKER', 'COORDINATOR', 'ADMIN'].includes(currentUser?.role);
+      if (queue) queue.classList.toggle('hidden', !canReview);
+      if (canReview) loadResponderIncidents();
+    }
+
+    async function loadIncidentAreas() {
+      const selector = document.getElementById('incidentAreaSelect');
+      if (!selector) return;
+      selector.innerHTML = '<option value="">Select district or upazila</option>';
+      try {
+        const response = await fetch('/api/locations');
+        if (!response.ok) throw new Error('Could not load administrative areas.');
+        const data = await response.json();
+        const areas = [
+          ...(data.districts || []).map(area => ({ ...area, tier: 'DISTRICT' })),
+          ...(data.upazilas || []).map(area => ({ ...area, tier: 'UPAZILA' }))
+        ].sort((a, b) => a.name.localeCompare(b.name));
+        for (const area of areas) {
+          const option = document.createElement('option');
+          option.value = area.id;
+          option.textContent = area.tier === 'UPAZILA' && area.parentName
+            ? `${area.name} Upazila, ${area.parentName} District`
+            : `${area.name} District`;
+          selector.appendChild(option);
+        }
+        if (!areas.length) throw new Error('No reportable districts or upazilas are configured.');
+      } catch (error) {
+        selector.innerHTML = '<option value="">Areas unavailable — try again later</option>';
+        console.error('Incident area list failed:', error);
+      }
+    }
+
+    function renderIncidentListItem(incident, includeDescription) {
+      const place = [incident.village, incident.unionName, incident.upazila, incident.district].filter(Boolean).join(', ');
+      return `<article class="rounded-lg border border-slate-800 bg-slate-900/80 p-3">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <strong class="text-sm text-white">${escapeHtml(incident.title)}</strong>
+          <span class="rounded border border-slate-700 px-2 py-0.5 text-[10px] font-semibold text-slate-300">${escapeHtml(incident.status)}</span>
+        </div>
+        <p class="mt-1 text-[11px] text-slate-400">${escapeHtml(incident.hazardType.replaceAll('_', ' '))}${place ? ` · ${escapeHtml(place)}` : ''}</p>
+        ${includeDescription ? `<p class="mt-1 text-[11px] text-slate-300">${escapeHtml(incident.description)}</p>` : ''}
+        <p class="mt-1 text-[10px] text-slate-500">${escapeHtml(incident.referenceCode)} · ${new Date(incident.createdAt).toLocaleString()}</p>
+      </article>`;
+    }
+
+    async function loadIncidentReports() {
+      const container = document.getElementById('publicIncidentList');
+      if (!container) return;
+      container.textContent = 'Loading verified reports…';
+      try {
+        const response = await fetch('/api/incidents/public?pageSize=20');
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message || 'Unable to load verified reports.');
+        container.innerHTML = result.items.length
+          ? result.items.map(incident => renderIncidentListItem(incident, false)).join('')
+          : '<p class="text-slate-400">No reports have been verified for public display yet.</p>';
+      } catch (error) {
+        container.textContent = error.message || 'Unable to load verified reports.';
+      }
+    }
+
+    async function submitIncidentReport(event) {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const button = document.getElementById('incidentSubmitButton');
+      const resultBox = document.getElementById('incidentSubmitResult');
+      const payload = Object.fromEntries(new FormData(form).entries());
+      for (const key of ['latitude', 'longitude', 'peopleAffected', 'householdsDisplaced']) {
+        if (payload[key] === '') delete payload[key];
+        else if (payload[key] !== undefined) payload[key] = Number(payload[key]);
+      }
+      button.disabled = true;
+      button.textContent = 'Submitting…';
+      resultBox.classList.remove('hidden');
+      resultBox.textContent = 'Submitting report…';
+      try {
+        const response = await fetch('/api/incidents', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...incidentAuthHeaders() },
+          body: JSON.stringify(payload)
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message || 'Unable to submit report.');
+        const report = result.report;
+        resultBox.innerHTML = `<p class="font-semibold text-emerald-300">${escapeHtml(result.message)}</p>
+          <p class="mt-2">Reference: <strong>${escapeHtml(report.referenceCode)}</strong></p>
+          <p class="mt-1 break-all">Private status access key: <code class="select-all rounded bg-slate-900 px-1">${escapeHtml(report.statusAccessToken)}</code></p>
+          <p class="mt-1 text-amber-200">Save both values now. The access key will not be shown again.</p>`;
+        form.reset();
+        loadIncidentReports();
+        if (!document.getElementById('responderIncidentSection').classList.contains('hidden')) loadResponderIncidents();
+      } catch (error) {
+        resultBox.textContent = error.message || 'Unable to submit report.';
+      } finally {
+        button.disabled = false;
+        button.textContent = incidentTranslations[localStorage.getItem('greensignal_language') || 'en'].submitButton;
+      }
+    }
+
+    function useIncidentLocation() {
+      if (!navigator.geolocation) {
+        alert('Location is not available in this browser. You can enter coordinates manually.');
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(position => {
+        document.querySelector('[name="latitude"]').value = position.coords.latitude.toFixed(6);
+        document.querySelector('[name="longitude"]').value = position.coords.longitude.toFixed(6);
+      }, error => {
+        console.warn('Unable to get device location:', error);
+        alert('Could not get your location. Check browser permission or enter the coordinates manually.');
+      }, { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 });
+    }
+
+    async function lookupIncidentStatus(event) {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const resultBox = document.getElementById('incidentStatusResult');
+      const payload = Object.fromEntries(new FormData(form).entries());
+      resultBox.classList.remove('hidden');
+      resultBox.textContent = 'Checking report…';
+      try {
+        const response = await fetch('/api/incidents/status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message || 'Unable to check report status.');
+        resultBox.innerHTML = `<div class="flex flex-wrap justify-between gap-2"><strong>${escapeHtml(result.title)}</strong><span>${escapeHtml(result.status)}</span></div>
+          <p class="text-slate-400">${escapeHtml(result.referenceCode)} · ${new Date(result.updatedAt).toLocaleString()}</p>
+          <ol class="mt-2 space-y-2 border-l border-slate-700 pl-3">${(result.updates || []).map(update =>
+            `<li><strong>${escapeHtml(update.toStatus || 'Received')}</strong> · ${escapeHtml(update.content)}
+             <span class="block text-[10px] text-slate-500">${new Date(update.createdAt).toLocaleString()}</span></li>`
+          ).join('')}</ol>`;
+      } catch (error) {
+        resultBox.textContent = error.message || 'Unable to check report status.';
+      }
+    }
+
+    async function loadResponderIncidents() {
+      const container = document.getElementById('responderIncidentList');
+      if (!container || !['WORKER', 'COORDINATOR', 'ADMIN'].includes(currentUser?.role)) return;
+      container.textContent = 'Loading area reports…';
+      try {
+        const response = await fetch('/api/incidents?pageSize=50', { headers: incidentAuthHeaders() });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message || 'Unable to load responder queue.');
+        container.innerHTML = result.items.length ? result.items.map(incident => {
+          const nextStatuses = {
+            REPORTED: ['VERIFIED', 'REJECTED', 'DUPLICATE'],
+            VERIFIED: ['ACTIVE', 'REJECTED', 'DUPLICATE'],
+            ACTIVE: ['CONTAINED', 'RESOLVED'],
+            CONTAINED: ['ACTIVE', 'RESOLVED'],
+            RESOLVED: ['ACTIVE'],
+            REJECTED: [],
+            DUPLICATE: []
+          }[incident.status] || [];
+          return `<article id="responderIncident-${escapeHtml(incident.id)}" class="rounded-lg border border-indigo-900/70 bg-slate-950/70 p-3">
+            ${renderIncidentListItem(incident, false)}
+            ${nextStatuses.length ? `<form class="mt-2 flex flex-col gap-2 sm:flex-row" data-incident-id="${escapeHtml(incident.id)}" onsubmit="updateIncidentStatus(event)">
+              <select name="status" class="rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-white">${nextStatuses.map(status => `<option value="${status}">${status}</option>`).join('')}</select>
+              <input name="content" maxlength="2000" placeholder="Review note (required for reject / duplicate)" class="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1.5 text-xs text-white">
+              <button type="submit" class="rounded-lg bg-indigo-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-indigo-600">Record review</button>
+            </form>` : ''}
+            <form class="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-800 pt-2" data-incident-id="${escapeHtml(incident.id)}" onsubmit="uploadIncidentEvidence(event)">
+              <label class="text-[10px] text-slate-300">Add evidence
+                <input name="file" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" required class="ml-1 max-w-[220px] text-[10px]">
+              </label>
+              <button type="submit" class="rounded bg-slate-800 px-2 py-1 text-[10px] text-white hover:bg-slate-700">Upload (max 5 MB)</button>
+            </form>
+            <div id="incidentEvidence-${escapeHtml(incident.id)}" class="mt-2 text-[10px] text-slate-400">Loading evidence…</div>
+          </article>`;
+        }).join('') : '<p class="text-xs text-slate-400">No reports are currently in your assigned area.</p>';
+        result.items.forEach(incident => loadIncidentEvidenceFor(incident.id));
+      } catch (error) {
+        container.textContent = error.message || 'Unable to load responder queue.';
+      }
+    }
+
+    async function updateIncidentStatus(event) {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const button = form.querySelector('button[type="submit"]');
+      const payload = Object.fromEntries(new FormData(form).entries());
+      button.disabled = true;
+      try {
+        const response = await fetch(`/api/incidents/${encodeURIComponent(form.dataset.incidentId)}/status`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', ...incidentAuthHeaders() },
+          body: JSON.stringify(payload)
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.message || 'Unable to update report.');
+        await Promise.all([loadResponderIncidents(), loadIncidentReports()]);
+      } catch (error) {
+        alert(error.message || 'Unable to update report.');
+        button.disabled = false;
+      }
+    }
+
     // Load Live Alerts (Jet Black in Dark Mode, Crisp Light in Day Mode)
     async function loadAlerts() {
       const container = document.getElementById('alertBannerList');
@@ -2415,6 +3137,14 @@
         container.innerHTML = alerts.map(alert => {
           const isCritical = alert.severity === 'CRITICAL';
           const isWarning = alert.severity === 'WARNING';
+          const alertText = `${alert.title || ''} ${alert.description || ''}`.toLowerCase();
+          const hazardType = alertText.includes('cyclone') ? 'CYCLONE' :
+                             alertText.includes('storm surge') ? 'STORM_SURGE' :
+                             alertText.includes('flood') ? 'FLOOD' :
+                             alertText.includes('landslide') ? 'LANDSLIDE' :
+                             alertText.includes('earthquake') ? 'EARTHQUAKE' :
+                             alertText.includes('fire') ? 'FIRE' : 'OTHER';
+          const showCoordinationAction = ['COORDINATOR', 'ADMIN'].includes(currentUser?.role);
           
           const borderClass = isCritical ? 'border-2 border-rose-500' :
                               isWarning ? 'border-2 border-amber-500' :
@@ -2437,15 +3167,20 @@
               <i class="fa-solid ${iconClass} text-lg mt-0.5 shrink-0"></i>
               <div class="flex-1">
                 <div class="text-xs font-bold tracking-wide uppercase flex items-center justify-between gap-2">
-                  <span class="alert-title ${titleColor} font-bold">${alert.title}</span>
-                  <span class="alert-badge px-2 py-0.5 rounded font-mono font-bold text-[10px] border ${badgeStyle}">${alert.severity}</span>
+                  <span class="alert-title ${titleColor} font-bold">${escapeHtml(alert.title)}</span>
+                  <span class="alert-badge px-2 py-0.5 rounded font-mono font-bold text-[10px] border ${badgeStyle}">${escapeHtml(alert.severity)}</span>
                 </div>
-                <div class="alert-desc text-xs mt-1 text-slate-300 leading-relaxed font-normal">${alert.description}</div>
+                <div class="alert-desc text-xs mt-1 text-slate-300 leading-relaxed font-normal">${escapeHtml(alert.description)}</div>
                 <div class="alert-meta text-[10px] text-slate-400 mt-1.5 flex items-center gap-2 font-medium">
-                  <span><i class="fa-solid fa-location-dot mr-1 text-slate-400"></i>${alert.district}</span>
+                  <span><i class="fa-solid fa-location-dot mr-1 text-slate-400"></i>${escapeHtml(alert.district)}</span>
                   <span>•</span>
                   <span>${new Date(alert.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                 </div>
+                ${showCoordinationAction ? `
+                  <button onclick="createIncidentCoordinationGroup('${escapeAttr(alert.id)}', '${hazardType}')" class="mt-2 rounded-lg bg-rose-800 hover:bg-rose-700 px-2.5 py-1.5 text-[10px] font-semibold text-white transition">
+                    <i class="fa-solid fa-people-group mr-1"></i>Create local response group
+                  </button>
+                ` : ''}
               </div>
             </div>
           `;
@@ -2520,11 +3255,21 @@
           }
 
           // Populate Coordinator Contact (strictly rendered only for citizens)
-          if (isCitizen && data.coordinatorContact) {
+          if (isCitizen) {
+            const contact = data.coordinatorContact;
+            const phone = safePhoneNumber(contact?.phone);
             const nameEl = document.getElementById('coordNameText');
             const btnEl = document.getElementById('callCoordinatorBtn');
-            if (nameEl) nameEl.innerText = data.coordinatorContact.fullName;
-            if (btnEl) btnEl.href = `tel:${data.coordinatorContact.phone || '+8801700000000'}`;
+            const unavailableEl = document.getElementById('coordinatorContactUnavailable');
+            if (nameEl && contact?.fullName) nameEl.innerText = contact.fullName;
+            if (phone && btnEl) {
+              btnEl.href = `tel:${phone}`;
+              btnEl.classList.remove('hidden');
+              unavailableEl?.classList.add('hidden');
+            } else {
+              btnEl?.classList.add('hidden');
+              unavailableEl?.classList.remove('hidden');
+            }
           }
         }
 
@@ -2867,11 +3612,11 @@
         const popupHtml = `
           <div class="p-3 bg-slate-900 text-slate-100 rounded-xl border border-slate-800 text-xs w-64">
             <div class="flex items-center justify-between gap-2 mb-1.5 pb-1.5 border-b border-slate-800">
-              <span class="font-bold text-white text-xs truncate">${c.name}</span>
+              <span class="font-bold text-white text-xs truncate">${escapeHtml(c.name)}</span>
               <span class="px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-emerald-950 text-emerald-300 border border-emerald-800">SHELTER</span>
             </div>
             <div class="text-[10px] text-slate-400 mb-2">
-              <i class="fa-solid fa-location-dot text-slate-500 mr-1"></i>${c.upazilaName}, ${c.districtName}
+              <i class="fa-solid fa-location-dot text-slate-500 mr-1"></i>${escapeHtml(c.upazilaName)}, ${escapeHtml(c.districtName)}
             </div>
             <div class="space-y-1 text-[11px] mb-2.5">
               <div class="flex justify-between text-slate-300">
@@ -2886,7 +3631,7 @@
                 <span>Medical: <b class="text-slate-200 font-mono">${c.currentStock?.medical_kits || 0}</b></span>
               </div>
             </div>
-            <button onclick="inspectGisFeature('RELIEF_CENTER', '${c.id}')" class="w-full py-1.5 px-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1.5 shadow transition">
+            <button onclick="inspectGisFeature('RELIEF_CENTER', '${escapeAttr(c.id)}')" class="w-full py-1.5 px-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[11px] font-semibold flex items-center justify-center gap-1.5 shadow transition">
               <i class="fa-solid fa-circle-info"></i> Inspect Full Shelter Data & Stocks
             </button>
           </div>
@@ -3333,7 +4078,7 @@
                       <!-- Telemetry Metric Display Box -->
                       <div class="bg-slate-950/80 border border-slate-800/90 rounded-lg p-2.5 flex items-center justify-between mb-3">
                         <div>
-                          <span class="text-[9px] text-slate-400 uppercase font-semibold block">Live Telemetry</span>
+                          <span class="text-[9px] text-slate-400 uppercase font-semibold block">Recorded sensor value</span>
                           <span class="text-lg font-bold font-mono ${meta.color}">${s.metricValue || '0.0 ' + meta.unit}</span>
                         </div>
                         <div class="text-right">
@@ -3837,6 +4582,7 @@
       const isFull = pct >= 100;
       const isBusy = pct >= 80;
       const vacancies = Math.max(0, capacity - occupancy);
+      const shelterPhone = safePhoneNumber(c.contactNum);
 
       const barColor = isFull ? 'bg-rose-500' : isBusy ? 'bg-amber-500' : 'bg-emerald-500';
       const statusText = isFull ? 'AT MAXIMUM CAPACITY' : isBusy ? 'HIGH CONGESTION' : 'OPERATIONAL (Intake Ready)';
@@ -3918,9 +4664,11 @@
 
               <!-- Action button: Hotline Call -->
               <div class="pt-4 border-t border-slate-800/80 mt-4">
-                <a href="tel:${c.contactNum || '+8801700000000'}" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2 px-3 rounded-lg text-xs flex items-center justify-center gap-2 shadow transition">
-                  <i class="fa-solid fa-phone-volume"></i> Call Shelter Hotline (${c.contactNum || '+8801700000000'})
-                </a>
+                ${shelterPhone
+                  ? `<a href="tel:${shelterPhone}" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-semibold py-2 px-3 rounded-lg text-xs flex items-center justify-center gap-2 shadow transition">
+                      <i class="fa-solid fa-phone-volume"></i> Call Shelter Hotline (${escapeHtml(shelterPhone)})
+                    </a>`
+                  : '<p class="text-center text-[11px] text-slate-400">No verified phone contact is listed for this shelter.</p>'}
               </div>
             </div>
 
@@ -3929,7 +4677,7 @@
               <div>
                 <div class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center justify-between mb-3">
                   <span>Critical Relief Material Reserves & Deficits</span>
-                  <span class="text-[10px] text-slate-500 font-normal">Real-Time Logistics Telemetry</span>
+                  <span class="text-[10px] text-slate-500 font-normal">Inventory record · confirm locally</span>
                 </div>
                 <div class="overflow-x-auto">
                   <table class="w-full text-left text-xs">
@@ -5014,6 +5762,10 @@
     // 4. Adapt UI based on Role
     function adaptUIForUser(user) {
       currentUser = user;
+      loadOperationsDashboard();
+      refreshIncidentRoleUI();
+      refreshSocketAuthentication();
+      loadAlerts();
       localStorage.setItem('user', JSON.stringify(user));
       localStorage.setItem('greensignal_user', JSON.stringify(user));
       localStorage.setItem('greensignal_auth_user', JSON.stringify(user));
@@ -5027,9 +5779,13 @@
       const messengerBtn = document.getElementById('messengerToggleBtn');
       const messengerDrawer = document.getElementById('messengerDrawer');
       if (isCitizen) {
+        secureMessagingPrivateKey = null;
+        secureMessagingState = null;
+        updateSecureMessagingStatus();
         if (messengerBtn) messengerBtn.classList.add('hidden');
         if (messengerDrawer) messengerDrawer.classList.add('translate-x-full');
       } else {
+        loadSecureMessagingState();
         if (messengerBtn) messengerBtn.classList.remove('hidden');
 
         // Reset messenger channel and clear prior messages so user never sees other users' chats
@@ -5049,10 +5805,7 @@
         if (messagesList) messagesList.innerHTML = '';
         showMessengerView('INBOX');
 
-        if (socket) {
-          socket.emit('join_user', user.id);
-          socket.emit('join_channel', 'upazila-general');
-        }
+        joinMessagingChannel('upazila-general');
 
         updateMessengerAccountInfo();
         allMessageSenders = [];
@@ -6319,6 +7072,12 @@
         .replace(/'/g, '&#039;');
     }
 
+    function safePhoneNumber(value) {
+      if (typeof value !== 'string') return '';
+      const normalized = value.trim().replace(/[^\d+]/g, '');
+      return /^\+?\d{7,15}$/.test(normalized) ? normalized : '';
+    }
+
     function escapeAttr(str) {
       if (!str) return '';
       return String(str)
@@ -6439,8 +7198,7 @@
     async function loadRecentSendersList(isManualRefresh = false) {
       const container = document.getElementById('conversationSendersList');
       try {
-        const myId = currentUser?.id || '';
-        const res = await fetch(`/api/messages/senders?userId=${encodeURIComponent(myId)}`);
+        const res = await fetch('/api/messages/senders', { headers: messagingHeaders() });
         if (!res.ok) throw new Error('Failed to load senders');
         const data = await res.json();
         allMessageSenders = Array.isArray(data) ? data : [];
@@ -6620,7 +7378,7 @@
       searchDebounceTimer = setTimeout(async () => {
         try {
           const myId = currentUser?.id || '';
-          const res = await fetch(`/api/messages/search-users?q=${encodeURIComponent(q)}&userId=${encodeURIComponent(myId)}`);
+          const res = await fetch(`/api/messages/search-users?q=${encodeURIComponent(q)}`, { headers: messagingHeaders() });
           if (res.ok) {
             const users = await res.json();
             if (Array.isArray(users)) {
@@ -6676,8 +7434,13 @@
     async function enterChatWithSender(id, channel, name, role, avatarIcon, avatarColor, phone, organization) {
       const myId = currentUser ? currentUser.id : 'guest';
       const isGeneral = (id === 'upazila-general');
-      const calculatedChannel = isGeneral ? 'upazila-general' : `direct-${[myId, id].sort().join('-')}`;
+      const calculatedChannel = isGeneral
+        ? 'upazila-general'
+        : String(channel || '').startsWith('group-')
+          ? channel
+          : `direct-${[myId, id].sort().join('-')}`;
 
+      if (socket && activeChannel !== calculatedChannel) socket.emit('leave_channel', activeChannel);
       activeChannel = calculatedChannel;
       activeSenderInfo = { id, channel: calculatedChannel, name, role, avatarIcon, avatarColor, phone, organization };
 
@@ -6723,9 +7486,7 @@
       }
 
       // Join socket channel room
-      if (socket) {
-        socket.emit('join_channel', activeChannel);
-      }
+      joinMessagingChannel(activeChannel);
 
       // Switch to Chat view and clear old messages immediately
       showMessengerView('CHAT');
@@ -6744,16 +7505,17 @@
     async function loadChannelMessages(channel) {
       const list = document.getElementById('messagesList');
       if (!list) return;
+      const requestId = ++activeHistoryRequest;
       try {
-        const myId = currentUser ? currentUser.id : '';
-        const res = await fetch(`/api/messages/${encodeURIComponent(channel)}?userId=${encodeURIComponent(myId)}`);
+        const res = await fetch(`/api/messages/${encodeURIComponent(channel)}`, { headers: messagingHeaders() });
+        if (requestId !== activeHistoryRequest || channel !== activeChannel) return;
         list.innerHTML = '';
         if (!res.ok) {
           list.innerHTML = `
-            <div class="p-8 text-center text-slate-500 text-xs space-y-2">
-              <i class="fa-regular fa-comments text-slate-600 text-2xl"></i>
-              <p class="font-medium text-slate-400">Direct Message Channel Ready</p>
-              <p class="text-[11px] text-slate-500">Send a message below to start communicating with this responder.</p>
+            <div class="p-8 text-center text-rose-300 text-xs space-y-2">
+              <i class="fa-solid fa-triangle-exclamation text-rose-400 text-xl"></i>
+              <p class="font-medium">Unable to load this conversation (HTTP ${res.status}).</p>
+              <p class="text-[11px] text-slate-400">Please sign in again or check your access and connection.</p>
             </div>
           `;
           return;
@@ -6772,10 +7534,11 @@
         }
         list.scrollTop = list.scrollHeight;
       } catch (e) {
+        if (requestId !== activeHistoryRequest || channel !== activeChannel) return;
         console.warn('Failed to load message history:', e);
         list.innerHTML = `
-          <div class="p-6 text-center text-slate-500 text-xs">
-            <p>Direct Message Channel Ready. Send a message below.</p>
+          <div class="p-6 text-center text-rose-300 text-xs">
+            <p>Unable to load conversation history. Check your connection and retry.</p>
           </div>
         `;
       }
@@ -6831,7 +7594,13 @@
     async function sendChatMessage() {
       const input = document.getElementById('chatMessageInput');
       const text = input.value.trim();
-      if (!text) return;
+      if (!text || isSendingChatMessage) return;
+
+      if (!secureMessagingPrivateKey) {
+        alert('Unlock secure messaging before sending.');
+        openSecureMessaging();
+        return;
+      }
 
       if (!currentUser) {
         await quickImpersonateLogin('Adamdighi Citizen');
@@ -6842,71 +7611,93 @@
         return;
       }
 
-      const msgPayload = {
-        senderId: currentUser.id,
-        channel: activeChannel,
-        text
-      };
-
-      if (socket) {
-        socket.emit('send_message', msgPayload);
+      if (!socket?.connected) {
+        alert('Chat is not connected. Check your connection and try again.');
+        return;
       }
 
-      // Optimistic append
-      const optimisticMsg = {
-        id: 'temp-' + Date.now(),
-        senderId: currentUser.id,
-        channel: activeChannel,
-        text,
-        createdAt: new Date().toISOString(),
-        sender: {
-          id: currentUser.id,
-          fullName: currentUser.fullName,
-          username: currentUser.username,
-          role: currentUser.role
-        }
-      };
-      appendChatMessage(optimisticMsg);
-
-      // Update sender in list and bump to top
-      let currentSender = allMessageSenders.find(s => s.channel === activeChannel);
-      if (!currentSender && activeSenderInfo && activeSenderInfo.id !== 'upazila-general') {
-        currentSender = {
-          id: activeSenderInfo.id,
-          userId: activeSenderInfo.id,
-          channel: activeChannel,
-          name: activeSenderInfo.name,
-          username: activeSenderInfo.name,
-          role: activeSenderInfo.role,
-          organization: activeSenderInfo.organization,
-          phone: activeSenderInfo.phone,
-          isGroup: false,
-          avatarIcon: activeSenderInfo.avatarIcon || 'fa-user',
-          avatarColor: activeSenderInfo.avatarColor || 'bg-indigo-600',
-          lastMessage: null,
-          unreadCount: 0
-        };
-        allMessageSenders.push(currentSender);
-      }
-
-      if (currentSender) {
-        currentSender.lastMessage = {
-          id: optimisticMsg.id,
+      isSendingChatMessage = true;
+      const sendButton = document.getElementById('sendChatMessageBtn');
+      input.disabled = true;
+      if (sendButton) sendButton.disabled = true;
+      try {
+        const keysResponse = await fetch(`/api/messages/${encodeURIComponent(activeChannel)}/keys`, {
+          headers: messagingHeaders()
+        });
+        const keyData = await keysResponse.json();
+        if (!keysResponse.ok) throw new Error(keyData.message || 'Unable to prepare secure message keys.');
+        await window.MessagingCrypto.trustRecipientKeys(keyData.recipients);
+        const encryptedMessage = await window.MessagingCrypto.encryptMessage(
           text,
-          senderId: currentUser.id,
-          senderName: currentUser.fullName,
-          createdAt: optimisticMsg.createdAt
-        };
-        allMessageSenders = [currentSender, ...allMessageSenders.filter(s => s !== currentSender)];
-      }
+          activeChannel,
+          currentUser.id,
+          keyData.recipients,
+          secureMessagingPrivateKey.signing
+        );
 
-      input.value = '';
-      input.focus();
+        const response = await new Promise((resolve) => {
+          socket.timeout(10000).emit('send_message', {
+            channel: activeChannel,
+            text: encryptedMessage.ciphertext,
+            encryptionIv: encryptedMessage.encryptionIv,
+            encryptedKeys: encryptedMessage.encryptedKeys,
+            encryptionSignature: encryptedMessage.encryptionSignature,
+            encryptionVersion: encryptedMessage.encryptionVersion
+          }, (error, result) => {
+            resolve(error ? { ok: false, error: 'Message sending timed out. Check your connection and try again.' } : result);
+          });
+        });
+        if (!response?.ok) throw new Error(response?.error || 'Failed to send message.');
+
+        const sentMessage = response.message;
+        handleIncomingChatMessage(sentMessage);
+
+        let currentSender = allMessageSenders.find(s => s.channel === activeChannel);
+        if (!currentSender && activeSenderInfo && activeSenderInfo.id !== 'upazila-general') {
+          currentSender = {
+            id: activeSenderInfo.id,
+            userId: activeSenderInfo.id,
+            channel: activeChannel,
+            name: activeSenderInfo.name,
+            username: activeSenderInfo.name,
+            role: activeSenderInfo.role,
+            organization: activeSenderInfo.organization,
+            phone: activeSenderInfo.phone,
+            isGroup: activeChannel.startsWith('group-'),
+            avatarIcon: activeSenderInfo.avatarIcon || 'fa-user',
+            avatarColor: activeSenderInfo.avatarColor || 'bg-indigo-600',
+            lastMessage: null,
+            unreadCount: 0
+          };
+          allMessageSenders.push(currentSender);
+        }
+
+        if (currentSender) {
+          currentSender.lastMessage = {
+            id: sentMessage.id,
+            text: '🔒 Encrypted message',
+            senderId: sentMessage.senderId,
+            senderName: currentUser.fullName,
+            createdAt: sentMessage.createdAt
+          };
+          allMessageSenders = [currentSender, ...allMessageSenders.filter(s => s !== currentSender)];
+        }
+
+        input.value = '';
+        input.focus();
+      } catch (error) {
+        alert(error.message || 'Unable to encrypt or send this message.');
+      } finally {
+        isSendingChatMessage = false;
+        input.disabled = false;
+        if (sendButton) sendButton.disabled = false;
+      }
     }
 
     function appendChatMessage(msg) {
       const list = document.getElementById('messagesList');
       if (!list) return;
+      if (msg.id && Array.from(list.children).some(message => message.dataset.messageId === String(msg.id))) return;
 
       // Clear placeholder if currently displayed
       if (list.innerText.includes('Direct Message Channel Ready') || list.innerText.includes('Loading conversation...')) {
@@ -6916,8 +7707,12 @@
       const isMe = currentUser && (msg.senderId === currentUser.id || msg.sender?.id === currentUser.id);
       const timeStr = msg.createdAt ? new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
       const senderDisplayName = isMe ? 'You' : (msg.sender?.fullName || msg.sender?.username || 'Responder');
+      const displayedText = msg.encryptionVersion
+        ? '🔒 Decrypting secure message…'
+        : `Legacy message (not end-to-end encrypted): ${msg.text}`;
 
       const div = document.createElement('div');
+      if (msg.id) div.dataset.messageId = msg.id;
       div.className = `flex flex-col ${isMe ? 'items-end' : 'items-start'} transition-all`;
       div.innerHTML = `
         <div class="flex items-center gap-1.5 mb-0.5">
@@ -6929,34 +7724,26 @@
             ? 'bg-indigo-600 text-white rounded-br-none' 
             : 'bg-slate-800 border border-slate-700/80 text-slate-200 rounded-bl-none'
         }">
-          ${escapeHtml(msg.text)}
+          ${escapeHtml(displayedText)}
         </div>
       `;
 
       list.appendChild(div);
       list.scrollTop = list.scrollHeight;
+      if (msg.encryptionVersion) {
+        const messageBody = div.lastElementChild;
+        getEncryptedMessageText(msg).then(value => {
+          if (messageBody?.isConnected) messageBody.textContent = value;
+        });
+      }
     }
 
     function handleIncomingChatMessage(msg) {
       if (!msg) return;
 
-      const myId = currentUser?.id || 'guest';
-
-      // Security & Privacy Check:
-      // If direct message, ignore if it does not involve the current user
-      if (msg.channel && msg.channel.startsWith('direct-')) {
-        if (!msg.channel.includes(myId)) {
-          return;
-        }
-      }
-
       // 1. If currently in this channel, append message bubble
       if (msg.channel === activeChannel) {
-        const list = document.getElementById('messagesList');
-        const lastEl = list?.lastElementChild;
-        if (!lastEl || !lastEl.innerText.includes(msg.text)) {
-          appendChatMessage(msg);
-        }
+        appendChatMessage(msg);
       }
 
       // 2. Update senders list with latest message
@@ -6965,7 +7752,7 @@
         if (generalSender) {
           generalSender.lastMessage = {
             id: msg.id,
-            text: msg.text,
+            text: msg.encryptionVersion ? '🔒 Encrypted message' : msg.text,
             senderId: msg.senderId,
             senderName: msg.sender?.fullName || 'User',
             createdAt: msg.createdAt || new Date().toISOString()
@@ -6979,7 +7766,7 @@
         if (found) {
           found.lastMessage = {
             id: msg.id,
-            text: msg.text,
+            text: msg.encryptionVersion ? '🔒 Encrypted message' : msg.text,
             senderId: msg.senderId,
             senderName: msg.sender?.fullName || 'User',
             createdAt: msg.createdAt || new Date().toISOString()
@@ -7129,5 +7916,6 @@
       }
     }
   </script>
+  <script src="/js/operations.js"></script>
 </body>
 </html>
